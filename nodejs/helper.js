@@ -114,7 +114,7 @@ class TextToSpeech {
         return { noisyLatent, latentMask };
     }
 
-    async _infer(textList, style, totalStep) {
+    async _infer(textList, style, totalStep, speed = 1.05) {
         if (textList.length !== style.ttl.dims[0]) {
             throw new Error('Number of texts must match number of style vectors');
         }
@@ -132,6 +132,11 @@ class TextToSpeech {
         });
         
         const durOnnx = Array.from(dpResult.duration.data);
+        
+        // Apply speed factor to duration
+        for (let i = 0; i < durOnnx.length; i++) {
+            durOnnx[i] /= speed;
+        }
         
         const textEncResult = await this.textEncOrt.run({
             text_ids: intArrayToTensor(textIds, textIdsShape),
@@ -185,7 +190,7 @@ class TextToSpeech {
         return { wav, duration: durOnnx };
     }
 
-    async call(text, style, totalStep, silenceDuration = 0.3) {
+    async call(text, style, totalStep, speed = 1.05, silenceDuration = 0.3) {
         if (style.ttl.dims[0] !== 1) {
             throw new Error('Single speaker text to speech only supports single style');
         }
@@ -194,7 +199,7 @@ class TextToSpeech {
         let durCat = 0;
         
         for (const chunk of textList) {
-            const { wav, duration } = await this._infer([chunk], style, totalStep);
+            const { wav, duration } = await this._infer([chunk], style, totalStep, speed);
             
             if (wavCat === null) {
                 wavCat = wav;
@@ -210,8 +215,8 @@ class TextToSpeech {
         return { wav: wavCat, duration: [durCat] };
     }
 
-    async batch(textList, style, totalStep) {
-        return await this._infer(textList, style, totalStep);
+    async batch(textList, style, totalStep, speed = 1.05) {
+        return await this._infer(textList, style, totalStep, speed);
     }
 }
 

@@ -72,7 +72,7 @@ export class TextToSpeech {
         this.sampleRate = cfgs.ae.sample_rate;
     }
 
-    async _infer(textList, style, totalStep, progressCallback = null) {
+    async _infer(textList, style, totalStep, speed = 1.05, progressCallback = null) {
         const bsz = textList.length;
         
         // Process text
@@ -93,6 +93,11 @@ export class TextToSpeech {
             text_mask: textMaskTensor
         });
         const duration = Array.from(dpOutputs.duration.data);
+        
+        // Apply speed factor to duration
+        for (let i = 0; i < duration.length; i++) {
+            duration[i] /= speed;
+        }
         
         // Encode text
         const textEncOutputs = await this.textEncOrt.run({
@@ -176,7 +181,7 @@ export class TextToSpeech {
         return { wav, duration };
     }
 
-    async call(text, style, totalStep, silenceDuration = 0.3, progressCallback = null) {
+    async call(text, style, totalStep, speed = 1.05, silenceDuration = 0.3, progressCallback = null) {
         if (style.ttl.dims[0] !== 1) {
             throw new Error('Single speaker text to speech only supports single style');
         }
@@ -185,7 +190,7 @@ export class TextToSpeech {
         let durCat = 0;
         
         for (const chunk of textList) {
-            const { wav, duration } = await this._infer([chunk], style, totalStep, progressCallback);
+            const { wav, duration } = await this._infer([chunk], style, totalStep, speed, progressCallback);
             
             if (wavCat.length === 0) {
                 wavCat = wav;
@@ -201,8 +206,8 @@ export class TextToSpeech {
         return { wav: wavCat, duration: [durCat] };
     }
 
-    async batch(textList, style, totalStep, progressCallback = null) {
-        return await this._infer(textList, style, totalStep, progressCallback);
+    async batch(textList, style, totalStep, speed = 1.05, progressCallback = null) {
+        return await this._infer(textList, style, totalStep, speed, progressCallback);
     }
 
     sampleNoisyLatent(duration, sampleRate, baseChunkSize, chunkCompress, latentDim) {

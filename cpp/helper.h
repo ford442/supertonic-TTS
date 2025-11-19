@@ -91,6 +91,7 @@ public:
         const std::string& text,
         const Style& style,
         int total_step,
+        float speed = 1.05f,
         float silence_duration = 0.3f
     );
     
@@ -98,7 +99,8 @@ public:
         Ort::MemoryInfo& memory_info,
         const std::vector<std::string>& text_list,
         const Style& style,
-        int total_step
+        int total_step,
+        float speed = 1.05f
     );
     
     int getSampleRate() const { return sample_rate_; }
@@ -108,7 +110,8 @@ private:
         Ort::MemoryInfo& memory_info,
         const std::vector<std::string>& text_list,
         const Style& style,
-        int total_step
+        int total_step,
+        float speed = 1.05f
     );
     Config cfgs_;
     UnicodeProcessor* text_processor_;

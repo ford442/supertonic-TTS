@@ -484,6 +484,7 @@ impl TextToSpeech {
         text_list: &[String],
         style: &Style,
         total_step: usize,
+        speed: f32,
     ) -> Result<(Vec<f32>, Vec<f32>)> {
         let bsz = text_list.len();
 
@@ -511,7 +512,12 @@ impl TextToSpeech {
         })?;
 
         let (_, duration_data) = dp_outputs["duration"].try_extract_tensor::<f32>()?;
-        let duration: Vec<f32> = duration_data.to_vec();
+        let mut duration: Vec<f32> = duration_data.to_vec();
+        
+        // Apply speed factor to duration
+        for dur in duration.iter_mut() {
+            *dur /= speed;
+        }
 
         // Encode text
         let style_ttl_value = Value::from_array(style.ttl.clone())?;
@@ -584,6 +590,7 @@ impl TextToSpeech {
         text: &str,
         style: &Style,
         total_step: usize,
+        speed: f32,
         silence_duration: f32,
     ) -> Result<(Vec<f32>, f32)> {
         let chunks = chunk_text(text, None);
@@ -592,7 +599,7 @@ impl TextToSpeech {
         let mut dur_cat: f32 = 0.0;
 
         for (i, chunk) in chunks.iter().enumerate() {
-            let (wav, duration) = self._infer(&[chunk.clone()], style, total_step)?;
+            let (wav, duration) = self._infer(&[chunk.clone()], style, total_step, speed)?;
             
             let dur = duration[0];
             let wav_len = (self.sample_rate as f32 * dur) as usize;
@@ -619,8 +626,9 @@ impl TextToSpeech {
         text_list: &[String],
         style: &Style,
         total_step: usize,
+        speed: f32,
     ) -> Result<(Vec<f32>, Vec<f32>)> {
-        self._infer(text_list, style, total_step)
+        self._infer(text_list, style, total_step, speed)
     }
 }
 

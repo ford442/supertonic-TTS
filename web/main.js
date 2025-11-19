@@ -25,6 +25,7 @@ const textInput = document.getElementById('text');
 const voiceStyleSelect = document.getElementById('voiceStyleSelect');
 const voiceStyleInfo = document.getElementById('voiceStyleInfo');
 const totalStepInput = document.getElementById('totalStep');
+const speedInput = document.getElementById('speed');
 const generateBtn = document.getElementById('generateBtn');
 const statusBox = document.getElementById('statusBox');
 const statusText = document.getElementById('statusText');
@@ -186,6 +187,7 @@ async function generateSpeech() {
         `;
         
         const totalStep = parseInt(totalStepInput.value);
+        const speed = parseFloat(speedInput.value);
         
         showStatus('ℹ️ <strong>Generating speech from text...</strong>');
         const tic = Date.now();
@@ -194,6 +196,7 @@ async function generateSpeech() {
             text, 
             currentStyle, 
             totalStep,
+            speed,
             0.3,
             (step, total) => {
                 showStatus(`ℹ️ <strong>Denoising (${step}/${total})...</strong>`);

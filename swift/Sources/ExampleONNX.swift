@@ -5,6 +5,7 @@ struct Args {
     var useGpu: Bool = false
     var onnxDir: String = "assets/onnx"
     var totalStep: Int = 5
+    var speed: Float = 1.05
     var nTest: Int = 4
     var voiceStyle: [String] = ["assets/voice_styles/M1.json"]
     var text: [String] = ["This morning, I took a walk in the park, and the sound of the birds and the breeze was so pleasant that I stopped for a long time just to listen."]
@@ -31,6 +32,11 @@ func parseArgs() -> Args {
         case "--total-step":
             if i + 1 < arguments.count {
                 args.totalStep = Int(arguments[i + 1]) ?? 5
+                i += 1
+            }
+        case "--speed":
+            if i + 1 < arguments.count {
+                args.speed = Float(arguments[i + 1]) ?? 1.05
                 i += 1
             }
         case "--n-test":
@@ -102,13 +108,13 @@ struct ExampleONNX {
                 
                 if args.batch {
                     let result = try timer("Generating speech from text") {
-                        try textToSpeech.batch(args.text, style, args.totalStep)
+                        try textToSpeech.batch(args.text, style, args.totalStep, speed: args.speed)
                     }
                     wav = result.wav
                     duration = result.duration
                 } else {
                     let result = try timer("Generating speech from text") {
-                        try textToSpeech.call(args.text[0], style, args.totalStep, silenceDuration: 0.3)
+                        try textToSpeech.call(args.text[0], style, args.totalStep, speed: args.speed, silenceDuration: 0.3)
                     }
                     wav = result.wav
                     duration = [result.duration]

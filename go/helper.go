@@ -572,7 +572,7 @@ func (tts *TextToSpeech) sampleNoisyLatent(durOnnx []float32) ([][][]float64, []
 	return noisyLatent, latentMask
 }
 
-func (tts *TextToSpeech) _infer(textList []string, style *Style, totalStep int) ([]float32, []float32, error) {
+func (tts *TextToSpeech) _infer(textList []string, style *Style, totalStep int, speed float32) ([]float32, []float32, error) {
 	bsz := len(textList)
 
 	// Process text
@@ -597,6 +597,11 @@ func (tts *TextToSpeech) _infer(textList []string, style *Style, totalStep int) 
 	durTensor := dpOutputs[0].(*ort.Tensor[float32])
 	defer durTensor.Destroy()
 	durOnnx := durTensor.GetData()
+	
+	// Apply speed factor to duration
+	for i := range durOnnx {
+		durOnnx[i] /= speed
+	}
 
 	// Encode text
 	textIDsTensor2 := IntArrayToTensor(textIDs, textIDsShape)
@@ -691,14 +696,14 @@ func (tts *TextToSpeech) _infer(textList []string, style *Style, totalStep int) 
 }
 
 // Call synthesizes speech from a single text with automatic chunking
-func (tts *TextToSpeech) Call(text string, style *Style, totalStep int, silenceDuration float32) ([]float32, float32, error) {
+func (tts *TextToSpeech) Call(text string, style *Style, totalStep int, speed float32, silenceDuration float32) ([]float32, float32, error) {
 	chunks := chunkText(text, 0)
 	
 	var wavCat []float32
 	var durCat float32
 
 	for i, chunk := range chunks {
-		wav, duration, err := tts._infer([]string{chunk}, style, totalStep)
+		wav, duration, err := tts._infer([]string{chunk}, style, totalStep, speed)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -724,8 +729,8 @@ func (tts *TextToSpeech) Call(text string, style *Style, totalStep int, silenceD
 }
 
 // Batch synthesizes speech from multiple texts
-func (tts *TextToSpeech) Batch(textList []string, style *Style, totalStep int) ([]float32, []float32, error) {
-	return tts._infer(textList, style, totalStep)
+func (tts *TextToSpeech) Batch(textList []string, style *Style, totalStep int, speed float32) ([]float32, []float32, error) {
+	return tts._infer(textList, style, totalStep, speed)
 }
 
 func (tts *TextToSpeech) Destroy() {

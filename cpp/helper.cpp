@@ -160,7 +160,8 @@ TextToSpeech::SynthesisResult TextToSpeech::_infer(
     Ort::MemoryInfo& memory_info,
     const std::vector<std::string>& text_list,
     const Style& style,
-    int total_step
+    int total_step,
+    float speed
 ) {
     int bsz = text_list.size();
     
@@ -212,6 +213,11 @@ TextToSpeech::SynthesisResult TextToSpeech::_infer(
     
     auto* dur_data = dp_outputs[0].GetTensorMutableData<float>();
     std::vector<float> duration(dur_data, dur_data + bsz);
+    
+    // Apply speed factor to duration
+    for (auto& dur : duration) {
+        dur /= speed;
+    }
     
     // Create new tensors for text encoder (previous ones were moved)
     text_ids_tensor = intArrayToTensor(memory_info, text_ids, text_ids_shape);
@@ -370,6 +376,7 @@ TextToSpeech::SynthesisResult TextToSpeech::call(
     const std::string& text,
     const Style& style,
     int total_step,
+    float speed,
     float silence_duration
 ) {
     if (style.getTtlShape()[0] != 1) {
@@ -381,7 +388,7 @@ TextToSpeech::SynthesisResult TextToSpeech::call(
     float dur_cat = 0.0f;
     
     for (const auto& chunk : text_list) {
-        auto result = _infer(memory_info, {chunk}, style, total_step);
+        auto result = _infer(memory_info, {chunk}, style, total_step, speed);
         
         if (wav_cat.empty()) {
             wav_cat = result.wav;
@@ -406,9 +413,10 @@ TextToSpeech::SynthesisResult TextToSpeech::batch(
     Ort::MemoryInfo& memory_info,
     const std::vector<std::string>& text_list,
     const Style& style,
-    int total_step
+    int total_step,
+    float speed
 ) {
-    return _infer(memory_info, text_list, style, total_step);
+    return _infer(memory_info, text_list, style, total_step, speed);
 }
 
 // ============================================================================

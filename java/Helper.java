@@ -154,7 +154,7 @@ class TextToSpeech {
         this.ldim = config.ttl.latentDim;
     }
     
-    private TTSResult _infer(List<String> textList, Style style, int totalStep, OrtEnvironment env) 
+    private TTSResult _infer(List<String> textList, Style style, int totalStep, float speed, OrtEnvironment env) 
             throws OrtException {
         int bsz = textList.size();
         
@@ -180,6 +180,11 @@ class TextToSpeech {
             duration = ((float[][]) dpValue)[0];
         } else {
             duration = (float[]) dpValue;
+        }
+        
+        // Apply speed factor to duration
+        for (int i = 0; i < duration.length; i++) {
+            duration[i] /= speed;
         }
         
         // Encode text
@@ -301,7 +306,7 @@ class TextToSpeech {
     /**
      * Synthesize speech from a single text with automatic chunking
      */
-    public TTSResult call(String text, Style style, int totalStep, float silenceDuration, OrtEnvironment env) 
+    public TTSResult call(String text, Style style, int totalStep, float speed, float silenceDuration, OrtEnvironment env) 
             throws OrtException {
         List<String> chunks = Helper.chunkText(text, 0);
         
@@ -309,7 +314,7 @@ class TextToSpeech {
         float durCat = 0.0f;
         
         for (int i = 0; i < chunks.size(); i++) {
-            TTSResult result = _infer(Arrays.asList(chunks.get(i)), style, totalStep, env);
+            TTSResult result = _infer(Arrays.asList(chunks.get(i)), style, totalStep, speed, env);
             
             float dur = result.duration[0];
             int wavLen = (int) (sampleRate * dur);
@@ -344,9 +349,9 @@ class TextToSpeech {
     /**
      * Batch synthesize speech from multiple texts
      */
-    public TTSResult batch(List<String> textList, Style style, int totalStep, OrtEnvironment env) 
+    public TTSResult batch(List<String> textList, Style style, int totalStep, float speed, OrtEnvironment env) 
             throws OrtException {
-        return _infer(textList, style, totalStep, env);
+        return _infer(textList, style, totalStep, speed, env);
     }
     
     public void close() throws OrtException {

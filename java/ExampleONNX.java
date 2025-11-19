@@ -15,6 +15,7 @@ public class ExampleONNX {
         boolean useGpu = false;
         String onnxDir = "assets/onnx";
         int totalStep = 5;
+        float speed = 1.05f;
         int nTest = 4;
         List<String> voiceStyle = Arrays.asList("assets/voice_styles/M1.json");
         List<String> text = Arrays.asList(
@@ -40,6 +41,9 @@ public class ExampleONNX {
                     break;
                 case "--total-step":
                     if (i + 1 < args.length) result.totalStep = Integer.parseInt(args[++i]);
+                    break;
+                case "--speed":
+                    if (i + 1 < args.length) result.speed = Float.parseFloat(args[++i]);
                     break;
                 case "--n-test":
                     if (i + 1 < args.length) result.nTest = Integer.parseInt(args[++i]);
@@ -76,6 +80,7 @@ public class ExampleONNX {
             // --- 1. Parse arguments --- //
             Args parsedArgs = parseArgs(args);
             int totalStep = parsedArgs.totalStep;
+            float speed = parsedArgs.speed;
             int nTest = parsedArgs.nTest;
             String saveDir = parsedArgs.saveDir;
             List<String> voiceStylePaths = parsedArgs.voiceStyle;
@@ -111,7 +116,7 @@ public class ExampleONNX {
                 if (batch) {
                     ttsResult = Helper.timer("Generating speech from text", () -> {
                         try {
-                            return textToSpeech.batch(textList, style, totalStep, env);
+                            return textToSpeech.batch(textList, style, totalStep, speed, env);
                         } catch (Exception e) {
                             throw new RuntimeException(e);
                         }
@@ -119,7 +124,7 @@ public class ExampleONNX {
                 } else {
                     ttsResult = Helper.timer("Generating speech from text", () -> {
                         try {
-                            return textToSpeech.call(textList.get(0), style, totalStep, 0.3f, env);
+                            return textToSpeech.call(textList.get(0), style, totalStep, speed, 0.3f, env);
                         } catch (Exception e) {
                             throw new RuntimeException(e);
                         }

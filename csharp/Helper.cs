@@ -194,7 +194,7 @@ namespace Supertonic
             return (noisyLatent, latentMask);
         }
 
-        private (float[] wav, float[] duration) _Infer(List<string> textList, Style style, int totalStep)
+        private (float[] wav, float[] duration) _Infer(List<string> textList, Style style, int totalStep, float speed = 1.05f)
         {
             int bsz = textList.Count;
             if (bsz != style.TtlShape[0])
@@ -222,6 +222,12 @@ namespace Supertonic
             };
             using var dpOutputs = _dpOrt.Run(dpInputs);
             var durOnnx = dpOutputs.First(o => o.Name == "duration").AsTensor<float>().ToArray();
+            
+            // Apply speed factor to duration
+            for (int i = 0; i < durOnnx.Length; i++)
+            {
+                durOnnx[i] /= speed;
+            }
 
             // Run text encoder
             var textEncInputs = new List<NamedOnnxValue>
@@ -284,7 +290,7 @@ namespace Supertonic
             return (wavTensor.ToArray(), durOnnx);
         }
 
-        public (float[] wav, float[] duration) Call(string text, Style style, int totalStep, float silenceDuration = 0.3f)
+        public (float[] wav, float[] duration) Call(string text, Style style, int totalStep, float speed = 1.05f, float silenceDuration = 0.3f)
         {
             if (style.TtlShape[0] != 1)
             {
@@ -297,7 +303,7 @@ namespace Supertonic
 
             foreach (var chunk in textList)
             {
-                var (wav, duration) = _Infer(new List<string> { chunk }, style, totalStep);
+                var (wav, duration) = _Infer(new List<string> { chunk }, style, totalStep, speed);
 
                 if (wavCat.Count == 0)
                 {
@@ -317,9 +323,9 @@ namespace Supertonic
             return (wavCat.ToArray(), new float[] { durCat });
         }
 
-        public (float[] wav, float[] duration) Batch(List<string> textList, Style style, int totalStep)
+        public (float[] wav, float[] duration) Batch(List<string> textList, Style style, int totalStep, float speed = 1.05f)
         {
-            return _Infer(textList, style, totalStep);
+            return _Infer(textList, style, totalStep, speed);
         }
     }
 

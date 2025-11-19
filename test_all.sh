@@ -108,6 +108,37 @@ NC='\033[0m' # No Color
 declare -a PASSED=()
 declare -a FAILED=()
 
+# Helper function to show statistics
+show_stats() {
+    local name=$1
+    local results_dir=$2
+    
+    if [ -d "$results_dir" ]; then
+        # Count .wav files
+        local file_count=$(find "$results_dir" -name "*.wav" -type f 2>/dev/null | wc -l | tr -d ' ')
+        
+        if [ "$file_count" -gt 0 ]; then
+            # Calculate total size
+            local total_size=0
+            while IFS= read -r file; do
+                if [ -f "$file" ]; then
+                    local size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null)
+                    total_size=$((total_size + size))
+                fi
+            done < <(find "$results_dir" -name "*.wav" -type f 2>/dev/null)
+            
+            # Calculate statistics
+            local total_size_mb=$(echo "scale=2; $total_size / 1024 / 1024" | bc)
+            local avg_size_kb=$(echo "scale=2; $total_size / $file_count / 1024" | bc)
+            
+            echo -e "${BLUE}[$name]${NC} 📊 Statistics:"
+            echo -e "${BLUE}[$name]${NC}   - Files generated: $file_count"
+            echo -e "${BLUE}[$name]${NC}   - Total size: ${total_size_mb} MB"
+            echo -e "${BLUE}[$name]${NC}   - Average file size: ${avg_size_kb} KB"
+        fi
+    fi
+}
+
 # Helper function to run tests
 run_test() {
     local name=$1
@@ -118,9 +149,19 @@ run_test() {
     echo -e "${BLUE}[$name]${NC} Running inference..."
     cd "$SCRIPT_DIR/$dir"
     
+    # Determine results directory based on the directory
+    local results_dir="$SCRIPT_DIR/$dir/results"
+    if [[ "$dir" == "cpp/build" ]]; then
+        results_dir="$SCRIPT_DIR/cpp/build/results"
+    fi
+    
     # Run command and prefix each output line with the language name
     if eval "$cmd" 2>&1 | sed "s/^/[$name] /"; then
         echo -e "${GREEN}[$name]${NC} ✓ Success"
+        
+        # Show statistics
+        show_stats "$name" "$results_dir"
+        
         PASSED+=("$name")
     else
         echo -e "${RED}[$name]${NC} ✗ Failed"

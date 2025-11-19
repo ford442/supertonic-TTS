@@ -27,6 +27,12 @@ def parse_args():
         "--total-step", type=int, default=5, help="Number of denoising steps"
     )
     parser.add_argument(
+        "--speed",
+        type=float,
+        default=1.05,
+        help="Speech speed (default: 1.05, higher = faster)",
+    )
+    parser.add_argument(
         "--n-test", type=int, default=4, help="Number of times to generate"
     )
 
@@ -62,6 +68,7 @@ print("=== TTS Inference with ONNX Runtime (Python) ===\n")
 # --- 1. Parse arguments --- #
 args = parse_args()
 total_step = args.total_step
+speed = args.speed
 n_test = args.n_test
 save_dir = args.save_dir
 voice_style_paths = args.voice_style
@@ -84,9 +91,9 @@ for n in range(n_test):
     print(f"\n[{n+1}/{n_test}] Starting synthesis...")
     with timer("Generating speech from text"):
         if batch:
-            wav, duration = text_to_speech.batch(text_list, style, total_step)
+            wav, duration = text_to_speech.batch(text_list, style, total_step, speed)
         else:
-            wav, duration = text_to_speech(text_list[0], style, total_step)
+            wav, duration = text_to_speech(text_list[0], style, total_step, speed)
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     for b in range(bsz):

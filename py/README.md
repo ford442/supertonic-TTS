@@ -4,6 +4,8 @@ This guide provides examples for running TTS inference using `example_onnx.py`.
 
 ## 📰 Update News
 
+**2025.11.19** - Added `--speed` parameter to control speech synthesis speed. Adjust the speed factor to make speech faster or slower while maintaining natural quality.
+
 **2025.11.19** - Added automatic text chunking for long-form inference. Long texts are split into chunks and synthesized with natural pauses.
 
 ## Installation
@@ -85,6 +87,28 @@ This will:
 
 **Note**: When using batch mode (`--batch`), automatic text chunking is disabled. Use non-batch mode for long-form text synthesis.
 
+### Example 5: Adjusting Speech Speed
+Control the speed of speech synthesis:
+```bash
+# Faster speech (speed > 1.0)
+uv run example_onnx.py \
+  --voice-style assets/voice_styles/F2.json \
+  --text "This text will be synthesized at a faster pace." \
+  --speed 1.2
+
+# Slower speech (speed < 1.0)
+uv run example_onnx.py \
+  --voice-style assets/voice_styles/M2.json \
+  --text "This text will be synthesized at a slower, more deliberate pace." \
+  --speed 0.9
+```
+
+This will:
+- Use `--speed 1.2` to generate faster speech
+- Use `--speed 0.9` to generate slower speech
+- Default speed is 1.05 if not specified
+- Recommended speed range is between 0.9 and 1.5 for natural-sounding results
+
 ## Available Arguments
 
 | Argument | Type | Default | Description |
@@ -92,6 +116,7 @@ This will:
 | `--use-gpu` | flag | False | Use GPU for inference (with CPU fallback) |
 | `--onnx-dir` | str | `assets/onnx` | Path to ONNX model directory |
 | `--total-step` | int | 5 | Number of denoising steps (higher = better quality, slower) |
+| `--speed` | float | 1.05 | Speech speed factor (higher = faster, lower = slower) |
 | `--n-test` | int | 4 | Number of times to generate each sample |
 | `--voice-style` | str+ | `assets/voice_styles/M1.json` | Voice style file path(s) |
 | `--text` | str+ | (long default text) | Text(s) to synthesize |

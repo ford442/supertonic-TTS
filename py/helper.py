@@ -86,7 +86,7 @@ class TextToSpeech:
         return noisy_latent, latent_mask
 
     def _infer(
-        self, text_list: list[str], style: Style, total_step: int
+        self, text_list: list[str], style: Style, total_step: int, speed: float = 1.05
     ) -> tuple[np.ndarray, np.ndarray]:
         assert (
             len(text_list) == style.ttl.shape[0]
@@ -96,6 +96,7 @@ class TextToSpeech:
         dur_onnx, *_ = self.dp_ort.run(
             None, {"text_ids": text_ids, "style_dp": style.dp, "text_mask": text_mask}
         )
+        dur_onnx = dur_onnx / speed
         text_emb_onnx, *_ = self.text_enc_ort.run(
             None,
             {"text_ids": text_ids, "style_ttl": style.ttl, "text_mask": text_mask},
@@ -120,7 +121,12 @@ class TextToSpeech:
         return wav, dur_onnx
 
     def __call__(
-        self, text: str, style: Style, total_step: int, silence_duration: float = 0.3
+        self,
+        text: str,
+        style: Style,
+        total_step: int,
+        speed: float = 1.05,
+        silence_duration: float = 0.3,
     ) -> tuple[np.ndarray, np.ndarray]:
         assert (
             style.ttl.shape[0] == 1
@@ -129,7 +135,7 @@ class TextToSpeech:
         wav_cat = None
         dur_cat = None
         for text in text_list:
-            wav, dur_onnx = self._infer([text], style, total_step)
+            wav, dur_onnx = self._infer([text], style, total_step, speed)
             if wav_cat is None:
                 wav_cat = wav
                 dur_cat = dur_onnx
@@ -142,9 +148,9 @@ class TextToSpeech:
         return wav_cat, dur_cat
 
     def batch(
-        self, text_list: list[str], style: Style, total_step: int
+        self, text_list: list[str], style: Style, total_step: int, speed: float = 1.05
     ) -> tuple[np.ndarray, np.ndarray]:
-        return self._infer(text_list, style, total_step)
+        return self._infer(text_list, style, total_step, speed)
 
 
 def length_to_mask(lengths: np.ndarray, max_len: Optional[int] = None) -> np.ndarray:

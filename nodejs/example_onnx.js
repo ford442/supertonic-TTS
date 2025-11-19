@@ -15,6 +15,7 @@ function parseArgs() {
         useGpu: false,
         onnxDir: 'assets/onnx',
         totalStep: 5,
+        speed: 1.05,
         nTest: 4,
         voiceStyle: ['assets/voice_styles/M1.json'],
         text: ['This morning, I took a walk in the park, and the sound of the birds and the breeze was so pleasant that I stopped for a long time just to listen.'],
@@ -32,6 +33,8 @@ function parseArgs() {
             args.onnxDir = process.argv[++i];
         } else if (arg === '--total-step' && i + 1 < process.argv.length) {
             args.totalStep = parseInt(process.argv[++i]);
+        } else if (arg === '--speed' && i + 1 < process.argv.length) {
+            args.speed = parseFloat(process.argv[++i]);
         } else if (arg === '--n-test' && i + 1 < process.argv.length) {
             args.nTest = parseInt(process.argv[++i]);
         } else if (arg === '--voice-style' && i + 1 < process.argv.length) {
@@ -55,6 +58,7 @@ async function main() {
     // --- 1. Parse arguments --- //
     const args = parseArgs();
     const totalStep = args.totalStep;
+    const speed = args.speed;
     const nTest = args.nTest;
     const saveDir = args.saveDir;
     const voiceStylePaths = args.voiceStyle.map(p => path.resolve(__dirname, p));
@@ -79,9 +83,9 @@ async function main() {
         
         const { wav, duration } = await timer('Generating speech from text', async () => {
             if (batch) {
-                return await textToSpeech.batch(textList, style, totalStep);
+                return await textToSpeech.batch(textList, style, totalStep, speed);
             } else {
-                return await textToSpeech.call(textList[0], style, totalStep);
+                return await textToSpeech.call(textList[0], style, totalStep, speed);
             }
         });
         

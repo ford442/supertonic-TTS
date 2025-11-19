@@ -26,6 +26,10 @@ struct Args {
     #[arg(long, default_value = "5")]
     total_step: usize,
 
+    /// Speech speed factor (higher = faster)
+    #[arg(long, default_value = "1.05")]
+    speed: f32,
+
     /// Number of times to generate
     #[arg(long, default_value = "4")]
     n_test: usize,
@@ -53,6 +57,7 @@ fn main() -> Result<()> {
     // --- 1. Parse arguments --- //
     let args = Args::parse();
     let total_step = args.total_step;
+    let speed = args.speed;
     let n_test = args.n_test;
     let voice_style_paths = &args.voice_style;
     let text_list = &args.text;
@@ -85,11 +90,11 @@ fn main() -> Result<()> {
 
         let (wav, duration) = if batch {
             timer("Generating speech from text", || {
-                text_to_speech.batch(text_list, &style, total_step)
+                text_to_speech.batch(text_list, &style, total_step, speed)
             })?
         } else {
             let (w, d) = timer("Generating speech from text", || {
-                text_to_speech.call(&text_list[0], &style, total_step, 0.3)
+                text_to_speech.call(&text_list[0], &style, total_step, speed, 0.3)
             })?;
             (w, vec![d])
         };

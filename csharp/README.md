@@ -4,6 +4,8 @@ This guide provides examples for running TTS inference using `ExampleONNX.cs`.
 
 ## 📰 Update News
 
+**2025.11.19** - Added `--speed` parameter to control speech synthesis speed (default: 1.05, recommended range: 0.9-1.5).
+
 **2025.11.19** - Added automatic text chunking for long-form inference. Long texts are split into chunks and synthesized with natural pauses.
 
 ## Installation

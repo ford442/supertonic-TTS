@@ -15,6 +15,7 @@ type Args struct {
 	useGPU      bool
 	onnxDir     string
 	totalStep   int
+	speed       float64
 	nTest       int
 	voiceStyle  []string
 	text        []string
@@ -28,6 +29,7 @@ func parseArgs() *Args {
 	flag.BoolVar(&args.useGPU, "use-gpu", false, "Use GPU for inference (default: CPU)")
 	flag.StringVar(&args.onnxDir, "onnx-dir", "assets/onnx", "Path to ONNX model directory")
 	flag.IntVar(&args.totalStep, "total-step", 5, "Number of denoising steps")
+	flag.Float64Var(&args.speed, "speed", 1.05, "Speech speed factor (higher = faster)")
 	flag.IntVar(&args.nTest, "n-test", 4, "Number of times to generate")
 	flag.StringVar(&args.saveDir, "save-dir", "results", "Output directory")
 	flag.BoolVar(&args.batch, "batch", false, "Enable batch mode (multiple text-style pairs)")
@@ -63,6 +65,7 @@ func main() {
 	// --- 1. Parse arguments --- //
 	args := parseArgs()
 	totalStep := args.totalStep
+	speed := float32(args.speed)
 	nTest := args.nTest
 	saveDir := args.saveDir
 	voiceStylePaths := args.voiceStyle
@@ -123,7 +126,7 @@ func main() {
 
 		if batch {
 			Timer("Generating speech from text", func() interface{} {
-				w, d, err := textToSpeech.Batch(textList, style, totalStep)
+				w, d, err := textToSpeech.Batch(textList, style, totalStep, speed)
 				if err != nil {
 					fmt.Printf("Error generating speech: %v\n", err)
 					os.Exit(1)
@@ -134,7 +137,7 @@ func main() {
 			})
 		} else {
 			Timer("Generating speech from text", func() interface{} {
-				w, d, err := textToSpeech.Call(textList[0], style, totalStep, 0.3)
+				w, d, err := textToSpeech.Call(textList[0], style, totalStep, speed, 0.3)
 				if err != nil {
 					fmt.Printf("Error generating speech: %v\n", err)
 					os.Exit(1)

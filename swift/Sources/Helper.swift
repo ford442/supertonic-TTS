@@ -453,7 +453,7 @@ class TextToSpeech {
         self.sampleRate = cfgs.ae.sample_rate
     }
     
-    private func _infer(_ textList: [String], _ style: Style, _ totalStep: Int) throws -> (wav: [Float], duration: [Float]) {
+    private func _infer(_ textList: [String], _ style: Style, _ totalStep: Int, speed: Float = 1.05) throws -> (wav: [Float], duration: [Float]) {
         let bsz = textList.count
         
         // Process text
@@ -479,8 +479,13 @@ class TextToSpeech {
                                       runOptions: nil)
         
         let durationData = try dpOutputs["duration"]!.tensorData() as Data
-        let duration = durationData.withUnsafeBytes { ptr in
+        var duration = durationData.withUnsafeBytes { ptr in
             Array(ptr.bindMemory(to: Float.self))
+        }
+        
+        // Apply speed factor to duration
+        for i in 0..<duration.count {
+            duration[i] /= speed
         }
         
         // Encode text
@@ -576,14 +581,14 @@ class TextToSpeech {
         return (wav, duration)
     }
     
-    func call(_ text: String, _ style: Style, _ totalStep: Int, silenceDuration: Float) throws -> (wav: [Float], duration: Float) {
+    func call(_ text: String, _ style: Style, _ totalStep: Int, speed: Float = 1.05, silenceDuration: Float = 0.3) throws -> (wav: [Float], duration: Float) {
         let chunks = chunkText(text)
         
         var wavCat = [Float]()
         var durCat: Float = 0.0
         
         for (i, chunk) in chunks.enumerated() {
-            let result = try _infer([chunk], style, totalStep)
+            let result = try _infer([chunk], style, totalStep, speed: speed)
             
             let dur = result.duration[0]
             let wavLen = Int(Float(sampleRate) * dur)
@@ -605,8 +610,8 @@ class TextToSpeech {
         return (wavCat, durCat)
     }
     
-    func batch(_ textList: [String], _ style: Style, _ totalStep: Int) throws -> (wav: [Float], duration: [Float]) {
-        return try _infer(textList, style, totalStep)
+    func batch(_ textList: [String], _ style: Style, _ totalStep: Int, speed: Float = 1.05) throws -> (wav: [Float], duration: [Float]) {
+        return try _infer(textList, style, totalStep, speed: speed)
     }
 }
 

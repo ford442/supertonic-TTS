@@ -10,6 +10,7 @@ namespace fs = std::filesystem;
 struct Args {
     std::string onnx_dir = "../assets/onnx";
     int total_step = 5;
+    float speed = 1.05f;
     int n_test = 4;
     std::vector<std::string> voice_style = {"../assets/voice_styles/M1.json"};
     std::vector<std::string> text = {
@@ -36,6 +37,7 @@ Args parseArgs(int argc, char* argv[]) {
         std::string arg = argv[i];
         if (arg == "--onnx-dir" && i + 1 < argc) args.onnx_dir = argv[++i];
         else if (arg == "--total-step" && i + 1 < argc) args.total_step = std::stoi(argv[++i]);
+        else if (arg == "--speed" && i + 1 < argc) args.speed = std::stof(argv[++i]);
         else if (arg == "--n-test" && i + 1 < argc) args.n_test = std::stoi(argv[++i]);
         else if (arg == "--voice-style" && i + 1 < argc) args.voice_style = splitString(argv[++i], ',');
         else if (arg == "--text" && i + 1 < argc) args.text = splitString(argv[++i], '|');
@@ -51,6 +53,7 @@ int main(int argc, char* argv[]) {
     // --- 1. Parse arguments --- //
     Args args = parseArgs(argc, argv);
     int total_step = args.total_step;
+    float speed = args.speed;
     int n_test = args.n_test;
     std::string save_dir = args.save_dir;
     std::vector<std::string> voice_style_paths = args.voice_style;
@@ -84,9 +87,9 @@ int main(int argc, char* argv[]) {
         
         auto result = timer("Generating speech from text", [&]() {
             if (batch) {
-                return text_to_speech->batch(memory_info, text_list, style, total_step);
+                return text_to_speech->batch(memory_info, text_list, style, total_step, speed);
             } else {
-                return text_to_speech->call(memory_info, text_list[0], style, total_step);
+                return text_to_speech->call(memory_info, text_list[0], style, total_step, speed);
             }
         });
         

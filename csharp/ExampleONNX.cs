@@ -12,6 +12,7 @@ namespace Supertonic
             public bool UseGpu { get; set; } = false;
             public string OnnxDir { get; set; } = "assets/onnx";
             public int TotalStep { get; set; } = 5;
+            public float Speed { get; set; } = 1.05f;
             public int NTest { get; set; } = 4;
             public List<string> VoiceStyle { get; set; } = new List<string> { "assets/voice_styles/M1.json" };
             public List<string> Text { get; set; } = new List<string> 
@@ -42,6 +43,9 @@ namespace Supertonic
                     case "--total-step" when i + 1 < args.Length:
                         result.TotalStep = int.Parse(args[++i]);
                         break;
+                    case "--speed" when i + 1 < args.Length:
+                        result.Speed = float.Parse(args[++i]);
+                        break;
                     case "--n-test" when i + 1 < args.Length:
                         result.NTest = int.Parse(args[++i]);
                         break;
@@ -67,6 +71,7 @@ namespace Supertonic
             // --- 1. Parse arguments --- //
             var parsedArgs = ParseArgs(args);
             int totalStep = parsedArgs.TotalStep;
+            float speed = parsedArgs.Speed;
             int nTest = parsedArgs.NTest;
             string saveDir = parsedArgs.SaveDir;
             var voiceStylePaths = parsedArgs.VoiceStyle;
@@ -96,11 +101,11 @@ namespace Supertonic
                 {
                     if (batch)
                     {
-                        return textToSpeech.Batch(textList, style, totalStep);
+                        return textToSpeech.Batch(textList, style, totalStep, speed);
                     }
                     else
                     {
-                        return textToSpeech.Call(textList[0], style, totalStep);
+                        return textToSpeech.Call(textList[0], style, totalStep, speed);
                     }
                 });
 
