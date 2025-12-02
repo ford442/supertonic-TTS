@@ -23,23 +23,76 @@
                 <div class="left-panel">
                     <div class="section">
                         <div class="ref-audio-label">
-        <label>Voice Style:</label>
-        <span id="voiceStyleInfo" class="ref-audio-info">Loading...</span>
-    </div>
-    
-    <select id="voiceStyleSelect" style="margin-bottom: 10px;">
-        <option value="assets/voice_styles/M1.json">Male 1 (M1)</option>
-        <option value="assets/voice_styles/M2.json">Male 2 (M2)</option>
-        <option value="assets/voice_styles/F1.json">Female 1 (F1)</option>
-        <option value="assets/voice_styles/F2.json">Female 2 (F2)</option>
-        <option value="custom">📂 Upload Custom Style (.json)</option>
-    </select>
+                            <label>Voice Style:</label>
+                            <span id="voiceStyleInfo" class="ref-audio-info">Loading...</span>
+                        </div>
 
-    <div id="customStyleContainer" class="hidden" style="margin-top: 5px;">
-        <label for="voiceStyleUpload" style="font-size: 0.9em; color: #666;">Select Voice Style JSON:</label>
-        <input type="file" id="voiceStyleUpload" accept=".json">
-    </div>
-</div>
+                        <select id="voiceStyleSelect" style="margin-bottom: 10px;">
+                            <option value="assets/voice_styles/M1.json">Male 1 (M1)</option>
+                            <option value="assets/voice_styles/M2.json">Male 2 (M2)</option>
+                            <option value="assets/voice_styles/F1.json">Female 1 (F1)</option>
+                            <option value="assets/voice_styles/F2.json">Female 2 (F2)</option>
+                            <option value="custom">📂 Upload Custom Style (.json)</option>
+                        </select>
+    
+                        <div id="customStyleContainer" class="hidden" style="margin-top: 5px;">
+                            <label for="voiceStyleUpload" style="font-size: 0.9em; color: #666;">Select Voice Style JSON:</label>
+                            <input type="file" id="voiceStyleUpload" accept=".json">
+                        </div>
+
+                        <button id="toggleMixerBtn" class="toggle-mixer-btn">Show Mixer & Editor</button>
+                    </div>
+
+                    <!-- MIXER PANEL (Hidden by default) -->
+                    <div id="mixerPanel" class="mixer-panel hidden">
+                        <div class="mixer-header">
+                            <h3>Timbre Heatmap (Style TTL)</h3>
+                            <button id="resetMixerBtn" class="mixer-btn secondary" style="width: auto;">Reset</button>
+                        </div>
+
+                        <div class="mixer-canvas-container">
+                            <canvas id="mixerCanvas"></canvas>
+                        </div>
+
+                        <div class="mixer-controls">
+                            <!-- Row 1: Geometric -->
+                            <div class="mixer-row">
+                                <button id="btnMirrorX" class="mixer-btn secondary">Mirror X</button>
+                                <button id="btnMirrorY" class="mixer-btn secondary">Mirror Y</button>
+                                <button id="btnInvert" class="mixer-btn secondary">Invert</button>
+                                <button id="btnRandShift" class="mixer-btn secondary">Rand Shift</button>
+                            </div>
+
+                            <!-- Row 2: DSP -->
+                            <div class="mixer-row">
+                                <button id="btnSharpen" class="mixer-btn dsp">Sharpen</button>
+                                <button id="btnQuantize" class="mixer-btn dsp">Quantize</button>
+                                <button id="btnEcho" class="mixer-btn dsp">Echo</button>
+                                <button id="btnTremolo" class="mixer-btn dsp">Tremolo</button>
+                                <button id="btnJitter" class="mixer-btn dsp">Jitter</button>
+                            </div>
+
+                            <!-- Row 3: Scalar -->
+                            <div class="mixer-row" style="align-items: center;">
+                                <div class="mixer-input-group">
+                                    <span>Add:</span>
+                                    <input type="number" id="valAdd" value="0.05" step="0.01">
+                                    <button id="btnAdd" class="mixer-btn secondary" style="min-width: 40px;">Go</button>
+                                </div>
+                                <div class="mixer-input-group">
+                                    <span>Mul:</span>
+                                    <input type="number" id="valMul" value="1.1" step="0.1">
+                                    <button id="btnMul" class="mixer-btn secondary" style="min-width: 40px;">Go</button>
+                                </div>
+                            </div>
+
+                            <!-- Row 4: Singing Preset -->
+                            <div class="mixer-row" style="margin-top: 10px;">
+                                <button id="btnSinging" class="mixer-btn singing">🎵 Apply Singing Preset (Exp)</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="section">
                         <label for="text">Text to Synthesize:</label>
                         <textarea id="text"
