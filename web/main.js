@@ -1,7 +1,8 @@
 import {
     loadTextToSpeech,
     loadVoiceStyle,
-    writeWavFile
+    writeWavFile,
+    createStyleFromJSON // Import the new function
 } from './helper.js';
 
 // Configuration
