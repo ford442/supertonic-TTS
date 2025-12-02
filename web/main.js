@@ -121,12 +121,22 @@ async function initializeModels() {
         showStatus(`❌ <strong>Error loading models:</strong> ${error.message}`, 'error');
     }
 }
+const voiceStyleUpload = document.getElementById('voiceStyleUpload');
+const customStyleContainer = document.getElementById('customStyleContainer');
 
-// Handle voice style selection
+// Handle Dropdown Selection
 voiceStyleSelect.addEventListener('change', async (e) => {
     const selectedValue = e.target.value;
-    
-    if (!selectedValue) return;
+
+    if (selectedValue === 'custom') {
+        // Show file upload input
+        customStyleContainer.classList.remove('hidden');
+        voiceStyleInfo.textContent = "Waiting for file...";
+        return;
+    }
+
+    // Hide file upload if a preset is selected
+    customStyleContainer.classList.add('hidden');
     
     try {
         generateBtn.disabled = true;
@@ -140,19 +150,40 @@ voiceStyleSelect.addEventListener('change', async (e) => {
         generateBtn.disabled = false;
     } catch (error) {
         showError(`Error loading voice style: ${error.message}`);
-        
-        // Restore default style
-        currentStylePath = DEFAULT_VOICE_STYLE_PATH;
-        voiceStyleSelect.value = currentStylePath;
-        try {
-            currentStyle = await loadStyleFromJSON(currentStylePath);
-            voiceStyleInfo.textContent = `${getFilenameFromPath(currentStylePath)} (default)`;
-        } catch (styleError) {
-            console.error('Error restoring default style:', styleError);
-        }
-        
         generateBtn.disabled = false;
     }
+});
+
+// Handle File Upload
+voiceStyleUpload.addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            showStatus(`ℹ️ <strong>Parsing custom style...</strong>`, 'info');
+            const jsonContent = JSON.parse(e.target.result);
+            
+            // Validate JSON structure roughly
+            if (!jsonContent.style_ttl || !jsonContent.style_dp) {
+                throw new Error("Invalid style JSON format. Missing style_ttl or style_dp.");
+            }
+
+            // Create style from JSON
+            currentStyle = createStyleFromJSON(jsonContent);
+            
+            voiceStyleInfo.textContent = `Custom: ${file.name}`;
+            showStatus(`✅ <strong>Custom style loaded:</strong> ${file.name}`, 'success');
+            generateBtn.disabled = false;
+            
+        } catch (error) {
+            console.error(error);
+            showError(`Failed to load custom style: ${error.message}`);
+            voiceStyleInfo.textContent = "Error loading file";
+        }
+    };
+    reader.readAsText(file);
 });
 
 // Main synthesis function
