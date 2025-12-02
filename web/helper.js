@@ -1,6 +1,34 @@
 import * as ort from 'onnxruntime-web';
 
 /**
+ * Create a Style object from a single JSON object (uploaded file)
+ */
+export function createStyleFromJSON(jsonObj) {
+    // Assuming single batch for uploaded file
+    const bsz = 1;
+    
+    const ttlDims = jsonObj.style_ttl.dims;
+    const dpDims = jsonObj.style_dp.dims;
+    
+    const ttlDim1 = ttlDims[1];
+    const ttlDim2 = ttlDims[2];
+    const dpDim1 = dpDims[1];
+    const dpDim2 = dpDims[2];
+    
+    // Flatten data
+    const ttlFlat = new Float32Array(jsonObj.style_ttl.data.flat(Infinity));
+    const dpFlat = new Float32Array(jsonObj.style_dp.data.flat(Infinity));
+    
+    // Create ONNX tensors
+    // Note: Use 'ort' from the scope. If helper.js imports it as: import * as ort from 'onnxruntime-web';
+    // Ensure this function has access to 'ort'.
+    const ttlTensor = new ort.Tensor('float32', ttlFlat, [bsz, ttlDim1, ttlDim2]);
+    const dpTensor = new ort.Tensor('float32', dpFlat, [bsz, dpDim1, dpDim2]);
+    
+    return new Style(ttlTensor, dpTensor);
+}
+
+/**
  * Unicode Text Processor
  */
 export class UnicodeProcessor {
