@@ -2,8 +2,12 @@ import {
     loadTextToSpeech,
     loadVoiceStyle,
     writeWavFile,
-    createStyleFromJSON // Import the new function
+    createStyleFromJSON,
+    Style
 } from './helper.js';
+
+import { VoiceMixer } from './mixer.js';
+import * as ort from 'onnxruntime-web';
 
 // Configuration
 const DEFAULT_VOICE_STYLE_PATH = 'assets/voice_styles/M1.json';
@@ -18,8 +22,11 @@ let textToSpeech = null;
 let cfgs = null;
 
 // Pre-computed style
-let currentStyle = null;
+let currentStyle = null; // The Style object used for inference
 let currentStylePath = DEFAULT_VOICE_STYLE_PATH;
+
+// Mixer Instance
+const mixer = new VoiceMixer();
 
 // UI Elements
 const textInput = document.getElementById('text');
@@ -33,6 +40,28 @@ const statusText = document.getElementById('statusText');
 const backendBadge = document.getElementById('backendBadge');
 const resultsContainer = document.getElementById('results');
 const errorBox = document.getElementById('error');
+
+// Mixer UI
+const toggleMixerBtn = document.getElementById('toggleMixerBtn');
+const mixerPanel = document.getElementById('mixerPanel');
+const mixerCanvas = document.getElementById('mixerCanvas');
+
+// Mixer Buttons
+const btnReset = document.getElementById('resetMixerBtn');
+const btnMirrorX = document.getElementById('btnMirrorX');
+const btnMirrorY = document.getElementById('btnMirrorY');
+const btnInvert = document.getElementById('btnInvert');
+const btnRandShift = document.getElementById('btnRandShift');
+const btnSharpen = document.getElementById('btnSharpen');
+const btnQuantize = document.getElementById('btnQuantize');
+const btnEcho = document.getElementById('btnEcho');
+const btnTremolo = document.getElementById('btnTremolo');
+const btnJitter = document.getElementById('btnJitter');
+const btnAdd = document.getElementById('btnAdd');
+const btnMul = document.getElementById('btnMul');
+const valAdd = document.getElementById('valAdd');
+const valMul = document.getElementById('valMul');
+const btnSinging = document.getElementById('btnSinging');
 
 function showStatus(message, type = 'info') {
     statusText.innerHTML = message;
@@ -66,6 +95,25 @@ async function loadStyleFromJSON(stylePath) {
         console.error('Error loading voice style:', error);
         throw error;
     }
+}
+
+// Helper: Convert raw data from mixer back to ONNX Style object
+function getStyleFromMixer() {
+    const data = mixer.getStyle();
+    if (!data.ttlData) return null;
+
+    // Create ONNX tensors
+    // bsz = 1
+    const ttlTensor = new ort.Tensor('float32', data.ttlData, data.ttlDims);
+    const dpTensor = new ort.Tensor('float32', data.dpData, data.dpDims);
+
+    return new Style(ttlTensor, dpTensor);
+}
+
+// Update the global currentStyle from the mixer's state
+function updateStyleFromMixer() {
+    currentStyle = getStyleFromMixer();
+    // voiceStyleInfo.textContent = "Modified in Mixer";
 }
 
 // Load models on page load
@@ -107,8 +155,13 @@ async function initializeModels() {
         
         showStatus('ℹ️ <strong>Loading default voice style...</strong>');
         
+        // Initialize Mixer Canvas
+        mixer.setCanvas(mixerCanvas);
+
         // Load default voice style
         currentStyle = await loadStyleFromJSON(currentStylePath);
+        mixer.loadStyle(currentStyle); // Load into mixer
+
         voiceStyleInfo.textContent = `${getFilenameFromPath(currentStylePath)} (default)`;
         
         showStatus(`✅ <strong>Models loaded!</strong> Using ${executionProvider.toUpperCase()}. You can now generate speech.`, 'success');
@@ -121,6 +174,7 @@ async function initializeModels() {
         showStatus(`❌ <strong>Error loading models:</strong> ${error.message}`, 'error');
     }
 }
+
 const voiceStyleUpload = document.getElementById('voiceStyleUpload');
 const customStyleContainer = document.getElementById('customStyleContainer');
 
@@ -144,6 +198,8 @@ voiceStyleSelect.addEventListener('change', async (e) => {
         
         currentStylePath = selectedValue;
         currentStyle = await loadStyleFromJSON(currentStylePath);
+        mixer.loadStyle(currentStyle); // Sync mixer
+
         voiceStyleInfo.textContent = getFilenameFromPath(currentStylePath);
         
         showStatus(`✅ <strong>Voice style loaded:</strong> ${getFilenameFromPath(currentStylePath)}`, 'success');
@@ -172,6 +228,7 @@ voiceStyleUpload.addEventListener('change', (event) => {
 
             // Create style from JSON
             currentStyle = createStyleFromJSON(jsonContent);
+            mixer.loadStyle(currentStyle); // Sync mixer
             
             voiceStyleInfo.textContent = `Custom: ${file.name}`;
             showStatus(`✅ <strong>Custom style loaded:</strong> ${file.name}`, 'success');
@@ -185,6 +242,68 @@ voiceStyleUpload.addEventListener('change', (event) => {
     };
     reader.readAsText(file);
 });
+
+// --- MIXER CONTROLS ---
+
+// Toggle visibility
+toggleMixerBtn.addEventListener('click', () => {
+    if (mixerPanel.classList.contains('hidden')) {
+        mixerPanel.classList.remove('hidden');
+        toggleMixerBtn.textContent = "Hide Mixer & Editor";
+        mixer.renderHeatmap(); // Redraw in case resize happened
+    } else {
+        mixerPanel.classList.add('hidden');
+        toggleMixerBtn.textContent = "Show Mixer & Editor";
+    }
+});
+
+// Operations
+function applyMixerOp(opName, arg = null) {
+    if (mixer[opName]) {
+        if (arg !== null) mixer[opName](arg);
+        else mixer[opName]();
+
+        updateStyleFromMixer();
+    }
+}
+
+btnReset.addEventListener('click', () => applyMixerOp('reset'));
+btnMirrorX.addEventListener('click', () => applyMixerOp('mirrorX'));
+btnMirrorY.addEventListener('click', () => applyMixerOp('mirrorY'));
+btnInvert.addEventListener('click', () => applyMixerOp('invertSign'));
+btnRandShift.addEventListener('click', () => applyMixerOp('randomShift'));
+
+btnSharpen.addEventListener('click', () => applyMixerOp('dspSharpen'));
+btnQuantize.addEventListener('click', () => applyMixerOp('dspQuantize'));
+btnEcho.addEventListener('click', () => applyMixerOp('dspEcho'));
+btnTremolo.addEventListener('click', () => applyMixerOp('dspTremolo'));
+btnJitter.addEventListener('click', () => applyMixerOp('dspJitter'));
+
+btnAdd.addEventListener('click', () => {
+    const val = parseFloat(valAdd.value);
+    applyMixerOp('addScalar', val);
+});
+btnMul.addEventListener('click', () => {
+    const val = parseFloat(valMul.value);
+    applyMixerOp('multiplyScalar', val);
+});
+
+// Singing Preset
+btnSinging.addEventListener('click', async () => {
+    // 1. Ensure we have a base voice. If current is M1/M2/etc, use it.
+    // Ideally, load F1 if not already loaded, as it's a good base.
+    /*
+    if (!currentStylePath.includes('F1.json')) {
+        // Optional: Auto-load F1?
+        // For now, just apply to current.
+    }
+    */
+
+    mixer.applySingingPreset();
+    updateStyleFromMixer();
+    showStatus('✅ <strong>Applied Singing Preset!</strong> Try generating speech.', 'success');
+});
+
 
 // Main synthesis function
 async function generateSpeech() {
