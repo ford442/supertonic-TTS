@@ -11,7 +11,7 @@ export default defineConfig({
           dest: 'assets'
         },
         {
-          src: '../assets/*',
+          src: ['../assets/*', '!../assets/.git'],
           dest: 'assets/onnx'
         }
       ]
