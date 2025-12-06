@@ -28,6 +28,11 @@ def upload_directory(sftp_client, local_path, remote_path):
         print(f"Directory {remote_path} already exists.")
 
     for item in os.listdir(local_path):
+        # Skip .git directories
+        if item == '.git':
+            print(f"Skipping .git directory: {os.path.join(local_path, item)}")
+            continue
+            
         local_item_path = os.path.join(local_path, item)
         remote_item_path = f"{remote_path}/{item}"
 
@@ -77,4 +82,3 @@ if __name__ == "__main__":
         print(f"Error: Local directory '{LOCAL_DIRECTORY}' not found. Did you run 'npm run build' first?")
     else:
         main()
-
