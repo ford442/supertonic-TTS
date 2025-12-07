@@ -7,7 +7,18 @@ import {
 } from './helper.js';
 
 import { VoiceMixer } from './mixer.js';
-import * as ort from 'onnxruntime-web';
+
+// Lazy-load ONNX Runtime to avoid "document is not defined" errors in workers
+let ortModule = null;
+async function getOrt() {
+    if (!ortModule) {
+        ortModule = await import('onnxruntime-web');
+        // Configure to avoid worker issues
+        ortModule.env.wasm.numThreads = 1;
+        ortModule.env.wasm.proxy = false;
+    }
+    return ortModule;
+}
 
 // Configuration
 const DEFAULT_VOICE_STYLE_PATH = 'assets/voice_styles/M1.json';
@@ -60,7 +71,8 @@ function showBackendBadge() {
 }
 
 // Helper: Convert raw data from mixer back to ONNX Style object
-function getStyleFromMixer() {
+async function getStyleFromMixer() {
+    const ort = await getOrt();
     const data = mixer.getStyle();
     if (!data.ttlData) return null;
 
@@ -71,17 +83,17 @@ function getStyleFromMixer() {
     return new Style(ttlTensor, dpTensor);
 }
 
-function updateStyleFromMixer() {
-    currentStyle = getStyleFromMixer();
+async function updateStyleFromMixer() {
+    currentStyle = await getStyleFromMixer();
 }
 
 // Operations wrapper for Mixer
-function applyMixerOp(opName, arg = null) {
+async function applyMixerOp(opName, arg = null) {
     if (mixer[opName]) {
         if (arg !== null) mixer[opName](arg);
         else mixer[opName]();
 
-        updateStyleFromMixer();
+        await updateStyleFromMixer();
     }
 }
 
@@ -111,12 +123,12 @@ function initializeUI() {
     backendBadge = document.getElementById('backendBadge');
     resultsContainer = document.getElementById('results');
     errorBox = document.getElementById('error');
-    
+
     // Mixer UI
     toggleMixerBtn = document.getElementById('toggleMixerBtn');
     mixerPanel = document.getElementById('mixerPanel');
     mixerCanvas = document.getElementById('mixerCanvas');
-    
+
     // Mixer Buttons
     btnReset = document.getElementById('resetMixerBtn');
     btnMirrorX = document.getElementById('btnMirrorX');
@@ -133,7 +145,7 @@ function initializeUI() {
     valAdd = document.getElementById('valAdd');
     valMul = document.getElementById('valMul');
     btnSinging = document.getElementById('btnSinging');
-    
+
     voiceStyleUpload = document.getElementById('voiceStyleUpload');
     customStyleContainer = document.getElementById('customStyleContainer');
 
@@ -148,11 +160,11 @@ function initializeUI() {
         }
 
         customStyleContainer.classList.add('hidden');
-        
+
         try {
             generateBtn.disabled = true;
             showStatus(`ℹ️ <strong>Loading voice style...</strong>`, 'info');
-            
+
             currentStylePath = selectedValue;
             currentStyle = await loadStyleFromJSON(currentStylePath);
             mixer.loadStyle(currentStyle);
@@ -179,9 +191,9 @@ function initializeUI() {
                     throw new Error("Invalid style JSON format.");
                 }
 
-                currentStyle = createStyleFromJSON(jsonContent);
+                currentStyle = await createStyleFromJSON(jsonContent);
                 mixer.loadStyle(currentStyle);
-                
+
                 voiceStyleInfo.textContent = `Custom: ${file.name}`;
                 showStatus(`✅ <strong>Custom style loaded:</strong> ${file.name}`, 'success');
                 generateBtn.disabled = false;
@@ -215,7 +227,7 @@ function initializeUI() {
     btnEcho.addEventListener('click', () => applyMixerOp('dspEcho'));
     btnTremolo.addEventListener('click', () => applyMixerOp('dspTremolo'));
     btnJitter.addEventListener('click', () => applyMixerOp('dspJitter'));
-    
+
     btnAdd.addEventListener('click', () => {
         const val = parseFloat(valAdd.value);
         applyMixerOp('addScalar', val);
@@ -224,10 +236,10 @@ function initializeUI() {
         const val = parseFloat(valMul.value);
         applyMixerOp('multiplyScalar', val);
     });
-    
+
     btnSinging.addEventListener('click', async () => {
         mixer.applySingingPreset();
-        updateStyleFromMixer();
+        await updateStyleFromMixer();
         showStatus('✅ <strong>Applied Singing Preset!</strong> Try generating speech.', 'success');
     });
 
@@ -239,7 +251,7 @@ async function initializeModels() {
     try {
         showStatus('ℹ️ <strong>Loading configuration...</strong>');
         const basePath = 'assets/onnx';
-        
+
         let executionProvider = 'wasm';
         try {
             const result = await loadTextToSpeech(basePath, {
@@ -264,7 +276,7 @@ async function initializeModels() {
             textToSpeech = result.textToSpeech;
             cfgs = result.cfgs;
         }
-        
+
         showStatus('ℹ️ <strong>Loading default voice style...</strong>');
         mixer.setCanvas(mixerCanvas);
         currentStyle = await loadStyleFromJSON(currentStylePath);
@@ -273,7 +285,7 @@ async function initializeModels() {
         showStatus(`✅ <strong>Models loaded!</strong> Using ${executionProvider.toUpperCase()}.`, 'success');
         showBackendBadge();
         generateBtn.disabled = false;
-        
+
     } catch (error) {
         console.error('Error loading models:', error);
         showStatus(`❌ <strong>Error loading models:</strong> ${error.message}`, 'error');
@@ -292,7 +304,7 @@ async function generateSpeech() {
         showError('Models are not ready. Please wait.');
         return;
     }
-    
+
     const startTime = Date.now();
     try {
         generateBtn.disabled = true;
@@ -303,26 +315,26 @@ async function generateSpeech() {
                 <p>Generating speech...</p>
             </div>
         `;
-        
+
         const totalStep = parseInt(totalStepInput.value);
         const speed = parseFloat(speedInput.value);
-        
+
         showStatus('ℹ️ <strong>Generating speech...</strong>');
         const tic = Date.now();
         const { wav, duration } = await textToSpeech.call(text, currentStyle, totalStep, speed, 0.3, (step, total) => {
             showStatus(`ℹ️ <strong>Denoising (${step}/${total})...</strong>`);
         });
         const toc = Date.now();
-        
+
         const wavLen = Math.floor(textToSpeech.sampleRate * duration[0]);
         const wavOut = wav.slice(0, wavLen);
         const wavBuffer = writeWavFile(wavOut, textToSpeech.sampleRate);
         const blob = new Blob([wavBuffer], { type: 'audio/wav' });
         const url = URL.createObjectURL(blob);
-        
+
         const totalTimeSec = ((Date.now() - startTime) / 1000).toFixed(2);
         const audioDurationSec = duration[0].toFixed(2);
-        
+
         resultsContainer.innerHTML = `
             <div class="result-item">
                 <div class="result-text-container">
@@ -342,7 +354,7 @@ async function generateSpeech() {
             </div>
         `;
         showStatus('✅ <strong>Synthesis completed!</strong>', 'success');
-        
+
     } catch (error) {
         console.error('Error:', error);
         showStatus(`❌ <strong>Error:</strong> ${error.message}`, 'error');
@@ -353,7 +365,7 @@ async function generateSpeech() {
     }
 }
 
-window.downloadAudio = function(url, filename) {
+window.downloadAudio = function (url, filename) {
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;

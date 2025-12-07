@@ -1,30 +1,39 @@
-import * as ort from 'onnxruntime-web';
+// Lazy-load ONNX Runtime to avoid "document is not defined" errors in workers
+let ortModule = null;
+async function getOrt() {
+    if (!ortModule) {
+        ortModule = await import('onnxruntime-web');
+        // Configure to avoid worker issues
+        ortModule.env.wasm.numThreads = 1;
+        ortModule.env.wasm.proxy = false;
+    }
+    return ortModule;
+}
 
 /**
  * Create a Style object from a single JSON object (uploaded file)
  */
-export function createStyleFromJSON(jsonObj) {
+export async function createStyleFromJSON(jsonObj) {
+    const ort = await getOrt();
     // Assuming single batch for uploaded file
     const bsz = 1;
-    
+
     const ttlDims = jsonObj.style_ttl.dims;
     const dpDims = jsonObj.style_dp.dims;
-    
+
     const ttlDim1 = ttlDims[1];
     const ttlDim2 = ttlDims[2];
     const dpDim1 = dpDims[1];
     const dpDim2 = dpDims[2];
-    
+
     // Flatten data
     const ttlFlat = new Float32Array(jsonObj.style_ttl.data.flat(Infinity));
     const dpFlat = new Float32Array(jsonObj.style_dp.data.flat(Infinity));
-    
+
     // Create ONNX tensors
-    // Note: Use 'ort' from the scope. If helper.js imports it as: import * as ort from 'onnxruntime-web';
-    // Ensure this function has access to 'ort'.
     const ttlTensor = new ort.Tensor('float32', ttlFlat, [bsz, ttlDim1, ttlDim2]);
     const dpTensor = new ort.Tensor('float32', dpFlat, [bsz, dpDim1, dpDim2]);
-    
+
     return new Style(ttlTensor, dpTensor);
 }
 
@@ -38,10 +47,10 @@ export class UnicodeProcessor {
 
     call(textList) {
         const processedTexts = textList.map(text => this.preprocessText(text));
-        
+
         const textIdsLengths = processedTexts.map(text => text.length);
         const maxLen = Math.max(...textIdsLengths);
-        
+
         const textIds = processedTexts.map(text => {
             const row = new Array(maxLen).fill(0);
             for (let j = 0; j < text.length; j++) {
@@ -50,7 +59,7 @@ export class UnicodeProcessor {
             }
             return row;
         });
-        
+
         const textMask = this.getTextMask(textIdsLengths);
         return { textIds, textMask };
     }
@@ -179,19 +188,20 @@ export class TextToSpeech {
     }
 
     async _infer(textList, style, totalStep, speed = 1.05, progressCallback = null) {
+        const ort = await getOrt();
         const bsz = textList.length;
-        
+
         // Process text
         const { textIds, textMask } = this.textProcessor.call(textList);
-        
+
         const textIdsFlat = new BigInt64Array(textIds.flat().map(x => BigInt(x)));
         const textIdsShape = [bsz, textIds[0].length];
         const textIdsTensor = new ort.Tensor('int64', textIdsFlat, textIdsShape);
-        
+
         const textMaskFlat = new Float32Array(textMask.flat(2));
         const textMaskShape = [bsz, 1, textMask[0][0].length];
         const textMaskTensor = new ort.Tensor('float32', textMaskFlat, textMaskShape);
-        
+
         // Predict duration
         const dpOutputs = await this.dpOrt.run({
             text_ids: textIdsTensor,
@@ -199,12 +209,12 @@ export class TextToSpeech {
             text_mask: textMaskTensor
         });
         const duration = Array.from(dpOutputs.duration.data);
-        
+
         // Apply speed factor to duration
         for (let i = 0; i < duration.length; i++) {
             duration[i] /= speed;
         }
-        
+
         // Encode text
         const textEncOutputs = await this.textEncOrt.run({
             text_ids: textIdsTensor,
@@ -212,7 +222,7 @@ export class TextToSpeech {
             text_mask: textMaskTensor
         });
         const textEmb = textEncOutputs.text_emb;
-        
+
         // Sample noisy latent
         let { xt, latentMask } = this.sampleNoisyLatent(
             duration,
@@ -221,28 +231,28 @@ export class TextToSpeech {
             this.cfgs.ttl.chunk_compress_factor,
             this.cfgs.ttl.latent_dim
         );
-        
+
         const latentMaskFlat = new Float32Array(latentMask.flat(2));
         const latentMaskShape = [bsz, 1, latentMask[0][0].length];
         const latentMaskTensor = new ort.Tensor('float32', latentMaskFlat, latentMaskShape);
-        
+
         // Prepare constant arrays
         const totalStepArray = new Float32Array(bsz).fill(totalStep);
         const totalStepTensor = new ort.Tensor('float32', totalStepArray, [bsz]);
-        
+
         // Denoising loop
         for (let step = 0; step < totalStep; step++) {
             if (progressCallback) {
                 progressCallback(step + 1, totalStep);
             }
-            
+
             const currentStepArray = new Float32Array(bsz).fill(step);
             const currentStepTensor = new ort.Tensor('float32', currentStepArray, [bsz]);
-            
+
             const xtFlat = new Float32Array(xt.flat(2));
             const xtShape = [bsz, xt[0].length, xt[0][0].length];
             const xtTensor = new ort.Tensor('float32', xtFlat, xtShape);
-            
+
             const vectorEstOutputs = await this.vectorEstOrt.run({
                 noisy_latent: xtTensor,
                 text_emb: textEmb,
@@ -252,9 +262,9 @@ export class TextToSpeech {
                 current_step: currentStepTensor,
                 total_step: totalStepTensor
             });
-            
+
             const denoised = Array.from(vectorEstOutputs.denoised_latent.data);
-            
+
             // Reshape to 3D
             const latentDim = xt[0].length;
             const latentLen = xt[0][0].length;
@@ -272,18 +282,18 @@ export class TextToSpeech {
                 xt.push(batch);
             }
         }
-        
+
         // Generate waveform
         const finalXtFlat = new Float32Array(xt.flat(2));
         const finalXtShape = [bsz, xt[0].length, xt[0][0].length];
         const finalXtTensor = new ort.Tensor('float32', finalXtFlat, finalXtShape);
-        
+
         const vocoderOutputs = await this.vocoderOrt.run({
             latent: finalXtTensor
         });
-        
+
         const wav = Array.from(vocoderOutputs.wav_tts.data);
-        
+
         return { wav, duration };
     }
 
@@ -294,10 +304,10 @@ export class TextToSpeech {
         const textList = chunkText(text);
         let wavCat = [];
         let durCat = 0;
-        
+
         for (const chunk of textList) {
             const { wav, duration } = await this._infer([chunk], style, totalStep, speed, progressCallback);
-            
+
             if (wavCat.length === 0) {
                 wavCat = wav;
                 durCat = duration[0];
@@ -308,7 +318,7 @@ export class TextToSpeech {
                 durCat += duration[0] + silenceDuration;
             }
         }
-        
+
         return { wav: wavCat, duration: [durCat] };
     }
 
@@ -319,14 +329,14 @@ export class TextToSpeech {
     sampleNoisyLatent(duration, sampleRate, baseChunkSize, chunkCompress, latentDim) {
         const bsz = duration.length;
         const maxDur = Math.max(...duration);
-        
+
         const wavLenMax = Math.floor(maxDur * sampleRate);
         const wavLengths = duration.map(d => Math.floor(d * sampleRate));
-        
+
         const chunkSize = baseChunkSize * chunkCompress;
         const latentLen = Math.floor((wavLenMax + chunkSize - 1) / chunkSize);
         const latentDimVal = latentDim * chunkCompress;
-        
+
         const xt = [];
         for (let b = 0; b < bsz; b++) {
             const batch = [];
@@ -343,10 +353,10 @@ export class TextToSpeech {
             }
             xt.push(batch);
         }
-        
+
         const latentLengths = wavLengths.map(len => Math.floor((len + chunkSize - 1) / chunkSize));
         const latentMask = this.lengthToMask(latentLengths, latentLen);
-        
+
         // Apply mask
         for (let b = 0; b < bsz; b++) {
             for (let d = 0; d < latentDimVal; d++) {
@@ -355,7 +365,7 @@ export class TextToSpeech {
                 }
             }
         }
-        
+
         return { xt, latentMask };
     }
 
@@ -375,52 +385,53 @@ export class TextToSpeech {
  * Load voice style from JSON files
  */
 export async function loadVoiceStyle(voiceStylePaths, verbose = false) {
+    const ort = await getOrt();
     const bsz = voiceStylePaths.length;
-    
+
     // Read first file to get dimensions
     const firstResponse = await fetch(voiceStylePaths[0]);
     const firstStyle = await firstResponse.json();
-    
+
     const ttlDims = firstStyle.style_ttl.dims;
     const dpDims = firstStyle.style_dp.dims;
-    
+
     const ttlDim1 = ttlDims[1];
     const ttlDim2 = ttlDims[2];
     const dpDim1 = dpDims[1];
     const dpDim2 = dpDims[2];
-    
+
     // Pre-allocate arrays with full batch size
     const ttlSize = bsz * ttlDim1 * ttlDim2;
     const dpSize = bsz * dpDim1 * dpDim2;
     const ttlFlat = new Float32Array(ttlSize);
     const dpFlat = new Float32Array(dpSize);
-    
+
     // Fill in the data
     for (let i = 0; i < bsz; i++) {
         const response = await fetch(voiceStylePaths[i]);
         const voiceStyle = await response.json();
-        
+
         // Flatten TTL data
         const ttlData = voiceStyle.style_ttl.data.flat(Infinity);
         const ttlOffset = i * ttlDim1 * ttlDim2;
         ttlFlat.set(ttlData, ttlOffset);
-        
+
         // Flatten DP data
         const dpData = voiceStyle.style_dp.data.flat(Infinity);
         const dpOffset = i * dpDim1 * dpDim2;
         dpFlat.set(dpData, dpOffset);
     }
-    
+
     const ttlShape = [bsz, ttlDim1, ttlDim2];
     const dpShape = [bsz, dpDim1, dpDim2];
-    
+
     const ttlTensor = new ort.Tensor('float32', ttlFlat, ttlShape);
     const dpTensor = new ort.Tensor('float32', dpFlat, dpShape);
-    
+
     if (verbose) {
         console.log(`Loaded ${bsz} voice styles`);
     }
-    
+
     return new Style(ttlTensor, dpTensor);
 }
 
@@ -446,6 +457,7 @@ export async function loadTextProcessor(onnxDir) {
  * Load ONNX model
  */
 export async function loadOnnx(onnxPath, options) {
+    const ort = await getOrt();
     const session = await ort.InferenceSession.create(onnxPath, options);
     return session;
 }
@@ -455,21 +467,21 @@ export async function loadOnnx(onnxPath, options) {
  */
 export async function loadTextToSpeech(onnxDir, sessionOptions = {}, progressCallback = null) {
     console.log('Using WebAssembly/WebGPU for inference');
-    
+
     const cfgs = await loadCfgs(onnxDir);
-    
+
     const dpPath = `${onnxDir}/duration_predictor.onnx`;
     const textEncPath = `${onnxDir}/text_encoder.onnx`;
     const vectorEstPath = `${onnxDir}/vector_estimator.onnx`;
     const vocoderPath = `${onnxDir}/vocoder.onnx`;
-    
+
     const modelPaths = [
         { name: 'Duration Predictor', path: dpPath },
         { name: 'Text Encoder', path: textEncPath },
         { name: 'Vector Estimator', path: vectorEstPath },
         { name: 'Vocoder', path: vocoderPath }
     ];
-    
+
     const sessions = [];
     for (let i = 0; i < modelPaths.length; i++) {
         if (progressCallback) {
@@ -478,12 +490,12 @@ export async function loadTextToSpeech(onnxDir, sessionOptions = {}, progressCal
         const session = await loadOnnx(modelPaths[i].path, sessionOptions);
         sessions.push(session);
     }
-    
+
     const [dpOrt, textEncOrt, vectorEstOrt, vocoderOrt] = sessions;
-    
+
     const textProcessor = await loadTextProcessor(onnxDir);
     const textToSpeech = new TextToSpeech(cfgs, textProcessor, dpOrt, textEncOrt, vectorEstOrt, vocoderOrt);
-    
+
     return { textToSpeech, cfgs };
 }
 
@@ -494,22 +506,22 @@ function chunkText(text, maxLen = 300) {
     if (typeof text !== 'string') {
         throw new Error(`chunkText expects a string, got ${typeof text}`);
     }
-    
+
     // Split by paragraph (two or more newlines)
     const paragraphs = text.trim().split(/\n\s*\n+/).filter(p => p.trim());
-    
+
     const chunks = [];
-    
+
     for (let paragraph of paragraphs) {
         paragraph = paragraph.trim();
         if (!paragraph) continue;
-        
+
         // Split by sentence boundaries (period, question mark, exclamation mark followed by space)
         // But exclude common abbreviations like Mr., Mrs., Dr., etc. and single capital letters like F.
         const sentences = paragraph.split(/(?<!Mr\.|Mrs\.|Ms\.|Dr\.|Prof\.|Sr\.|Jr\.|Ph\.D\.|etc\.|e\.g\.|i\.e\.|vs\.|Inc\.|Ltd\.|Co\.|Corp\.|St\.|Ave\.|Blvd\.)(?<!\b[A-Z]\.)(?<=[.!?])\s+/);
-        
+
         let currentChunk = "";
-        
+
         for (let sentence of sentences) {
             if (currentChunk.length + sentence.length + 1 <= maxLen) {
                 currentChunk += (currentChunk ? " " : "") + sentence;
@@ -520,12 +532,12 @@ function chunkText(text, maxLen = 300) {
                 currentChunk = sentence;
             }
         }
-        
+
         if (currentChunk) {
             chunks.push(currentChunk.trim());
         }
     }
-    
+
     return chunks;
 }
 
@@ -538,18 +550,18 @@ export function writeWavFile(audioData, sampleRate) {
     const byteRate = sampleRate * numChannels * bitsPerSample / 8;
     const blockAlign = numChannels * bitsPerSample / 8;
     const dataSize = audioData.length * 2;
-    
+
     // Create ArrayBuffer
     const buffer = new ArrayBuffer(44 + dataSize);
     const view = new DataView(buffer);
-    
+
     // Write WAV header
     const writeString = (offset, string) => {
         for (let i = 0; i < string.length; i++) {
             view.setUint8(offset + i, string.charCodeAt(i));
         }
     };
-    
+
     writeString(0, 'RIFF');
     view.setUint32(4, 36 + dataSize, true);
     writeString(8, 'WAVE');
@@ -563,16 +575,16 @@ export function writeWavFile(audioData, sampleRate) {
     view.setUint16(34, bitsPerSample, true);
     writeString(36, 'data');
     view.setUint32(40, dataSize, true);
-    
+
     // Write audio data
     const int16Data = new Int16Array(audioData.length);
     for (let i = 0; i < audioData.length; i++) {
         const clamped = Math.max(-1.0, Math.min(1.0, audioData[i]));
         int16Data[i] = Math.floor(clamped * 32767);
     }
-    
+
     const dataView = new Uint8Array(buffer, 44);
     dataView.set(new Uint8Array(int16Data.buffer));
-    
+
     return buffer;
 }
