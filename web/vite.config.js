@@ -30,5 +30,8 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ['onnxruntime-web']
+  },
+  ssr: {
+    noExternal: ['onnxruntime-web']
   }
 });
