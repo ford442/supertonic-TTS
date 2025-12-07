@@ -12,14 +12,14 @@ import * as ort from 'onnxruntime-web';
 // Configuration
 const DEFAULT_VOICE_STYLE_PATH = 'assets/voice_styles/M1.json';
 
-// Global state
+// Global state variables
 let textToSpeech = null;
 let cfgs = null;
-let currentStyle = null;
+let currentStyle = null; // The Style object used for inference
 let currentStylePath = DEFAULT_VOICE_STYLE_PATH;
 const mixer = new VoiceMixer();
 
-// UI Elements (Declare variables but don't assign yet)
+// UI Elements (declared globally, initialized in initializeUI)
 let textInput, voiceStyleSelect, voiceStyleInfo, totalStepInput, speedInput;
 let generateBtn, statusBox, statusText, backendBadge, resultsContainer, errorBox;
 let toggleMixerBtn, mixerPanel, mixerCanvas;
@@ -28,13 +28,78 @@ let btnQuantize, btnEcho, btnTremolo, btnJitter, btnAdd, btnMul;
 let valAdd, valMul, btnSinging;
 let voiceStyleUpload, customStyleContainer;
 
+// --- Helper Functions ---
+
 function getFilenameFromPath(path) {
     return path.split('/').pop();
 }
 
-// ... [Keep existing helper functions like showStatus, showError, etc.] ...
+function showStatus(message, type = 'info') {
+    if (!statusText || !statusBox) return;
+    statusText.innerHTML = message;
+    statusBox.className = 'status-box';
+    if (type === 'success') {
+        statusBox.classList.add('success');
+    } else if (type === 'error') {
+        statusBox.classList.add('error');
+    }
+}
 
-// Initialize UI Elements and Event Listeners
+function showError(message) {
+    if (!errorBox) return;
+    errorBox.textContent = message;
+    errorBox.classList.add('active');
+}
+
+function hideError() {
+    if (errorBox) errorBox.classList.remove('active');
+}
+
+function showBackendBadge() {
+    if (backendBadge) backendBadge.classList.add('visible');
+}
+
+// Helper: Convert raw data from mixer back to ONNX Style object
+function getStyleFromMixer() {
+    const data = mixer.getStyle();
+    if (!data.ttlData) return null;
+
+    // Create ONNX tensors
+    // bsz = 1
+    const ttlTensor = new ort.Tensor('float32', data.ttlData, data.ttlDims);
+    const dpTensor = new ort.Tensor('float32', data.dpData, data.dpDims);
+
+    return new Style(ttlTensor, dpTensor);
+}
+
+// Update the global currentStyle from the mixer's state
+function updateStyleFromMixer() {
+    currentStyle = getStyleFromMixer();
+}
+
+// Operations wrapper for Mixer
+function applyMixerOp(opName, arg = null) {
+    if (mixer[opName]) {
+        if (arg !== null) mixer[opName](arg);
+        else mixer[opName]();
+
+        updateStyleFromMixer();
+    }
+}
+
+// Load voice style from JSON
+async function loadStyleFromJSON(stylePath) {
+    try {
+        const style = await loadVoiceStyle([stylePath], true);
+        return style;
+    } catch (error) {
+        console.error('Error loading voice style:', error);
+        throw error;
+    }
+}
+
+// --- Initialization Logic ---
+
 function initializeUI() {
     // 1. Grab all elements
     textInput = document.getElementById('text');
@@ -75,22 +140,29 @@ function initializeUI() {
     customStyleContainer = document.getElementById('customStyleContainer');
 
     // 2. Attach Event Listeners
+    
+    // Dropdown Selection
     voiceStyleSelect.addEventListener('change', async (e) => {
-        // ... [Paste existing logic] ...
         const selectedValue = e.target.value;
+
         if (selectedValue === 'custom') {
             customStyleContainer.classList.remove('hidden');
             voiceStyleInfo.textContent = "Waiting for file...";
             return;
         }
+
         customStyleContainer.classList.add('hidden');
+        
         try {
             generateBtn.disabled = true;
             showStatus(`ℹ️ <strong>Loading voice style...</strong>`, 'info');
+            
             currentStylePath = selectedValue;
             currentStyle = await loadStyleFromJSON(currentStylePath);
-            mixer.loadStyle(currentStyle);
+            mixer.loadStyle(currentStyle); // Sync mixer
+
             voiceStyleInfo.textContent = getFilenameFromPath(currentStylePath);
+            
             showStatus(`✅ <strong>Voice style loaded:</strong> ${getFilenameFromPath(currentStylePath)}`, 'success');
             generateBtn.disabled = false;
         } catch (error) {
@@ -99,9 +171,9 @@ function initializeUI() {
         }
     });
 
+    // File Upload
     voiceStyleUpload.addEventListener('change', (event) => {
-        // ... [Paste existing logic] ...
-         const file = event.target.files[0];
+        const file = event.target.files[0];
         if (!file) return;
 
         const reader = new FileReader();
@@ -109,14 +181,20 @@ function initializeUI() {
             try {
                 showStatus(`ℹ️ <strong>Parsing custom style...</strong>`, 'info');
                 const jsonContent = JSON.parse(e.target.result);
+                
+                // Validate JSON structure roughly
                 if (!jsonContent.style_ttl || !jsonContent.style_dp) {
                     throw new Error("Invalid style JSON format. Missing style_ttl or style_dp.");
                 }
+
+                // Create style from JSON
                 currentStyle = createStyleFromJSON(jsonContent);
-                mixer.loadStyle(currentStyle);
+                mixer.loadStyle(currentStyle); // Sync mixer
+                
                 voiceStyleInfo.textContent = `Custom: ${file.name}`;
                 showStatus(`✅ <strong>Custom style loaded:</strong> ${file.name}`, 'success');
                 generateBtn.disabled = false;
+                
             } catch (error) {
                 console.error(error);
                 showError(`Failed to load custom style: ${error.message}`);
@@ -126,12 +204,12 @@ function initializeUI() {
         reader.readAsText(file);
     });
 
-    // Mixer Listeners
+    // Mixer Controls
     toggleMixerBtn.addEventListener('click', () => {
         if (mixerPanel.classList.contains('hidden')) {
             mixerPanel.classList.remove('hidden');
             toggleMixerBtn.textContent = "Hide Mixer & Editor";
-            mixer.renderHeatmap();
+            mixer.renderHeatmap(); // Redraw in case resize happened
         } else {
             mixerPanel.classList.add('hidden');
             toggleMixerBtn.textContent = "Show Mixer & Editor";
@@ -146,34 +224,4 @@ function initializeUI() {
     btnSharpen.addEventListener('click', () => applyMixerOp('dspSharpen'));
     btnQuantize.addEventListener('click', () => applyMixerOp('dspQuantize'));
     btnEcho.addEventListener('click', () => applyMixerOp('dspEcho'));
-    btnTremolo.addEventListener('click', () => applyMixerOp('dspTremolo'));
-    btnJitter.addEventListener('click', () => applyMixerOp('dspJitter'));
-    
-    btnAdd.addEventListener('click', () => {
-        const val = parseFloat(valAdd.value);
-        applyMixerOp('addScalar', val);
-    });
-    btnMul.addEventListener('click', () => {
-        const val = parseFloat(valMul.value);
-        applyMixerOp('multiplyScalar', val);
-    });
-    
-    btnSinging.addEventListener('click', async () => {
-        mixer.applySingingPreset();
-        updateStyleFromMixer();
-        showStatus('✅ <strong>Applied Singing Preset!</strong> Try generating speech.', 'success');
-    });
-
-    generateBtn.addEventListener('click', generateSpeech);
-}
-
-// ... [Rest of functions: loadStyleFromJSON, getStyleFromMixer, updateStyleFromMixer] ...
-
-// Main Initialization
-window.addEventListener('load', async () => {
-    // Initialize UI first so variables are populated
-    initializeUI();
-    
-    generateBtn.disabled = true;
-    await initializeModels();
-});
+    btnTremolo.addEventListener('click', () => applyMixerOp('dspTrem
