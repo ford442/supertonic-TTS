@@ -224,4 +224,216 @@ function initializeUI() {
     btnSharpen.addEventListener('click', () => applyMixerOp('dspSharpen'));
     btnQuantize.addEventListener('click', () => applyMixerOp('dspQuantize'));
     btnEcho.addEventListener('click', () => applyMixerOp('dspEcho'));
-    btnTremolo.addEventListener('click', () => applyMixerOp('dspTrem
+    btnTremolo.addEventListener('click', () => applyMixerOp('dspTremolo'));
+    btnJitter.addEventListener('click', () => applyMixerOp('dspJitter'));
+
+    btnAdd.addEventListener('click', () => {
+        const val = parseFloat(valAdd.value);
+        applyMixerOp('addScalar', val);
+    });
+    btnMul.addEventListener('click', () => {
+        const val = parseFloat(valMul.value);
+        applyMixerOp('multiplyScalar', val);
+    });
+
+    btnSinging.addEventListener('click', async () => {
+        mixer.applySingingPreset();
+        updateStyleFromMixer();
+        showStatus('✅ <strong>Applied Singing Preset!</strong> Try generating speech.', 'success');
+    });
+
+    // Generate Button - This was referencing generateSpeech, which must be defined!
+    generateBtn.addEventListener('click', generateSpeech);
+}
+
+// Load models on page load
+async function initializeModels() {
+    try {
+        showStatus('ℹ️ <strong>Loading configuration...</strong>');
+        
+        const basePath = 'assets/onnx';
+        
+        // Try WebGPU first, fallback to WASM
+        let executionProvider = 'wasm';
+        try {
+            const result = await loadTextToSpeech(basePath, {
+                executionProviders: ['webgpu'],
+                graphOptimizationLevel: 'all'
+            }, (modelName, current, total) => {
+                showStatus(`ℹ️ <strong>Loading ONNX models (${current}/${total}):</strong> ${modelName}...`);
+            });
+            
+            textToSpeech = result.textToSpeech;
+            cfgs = result.cfgs;
+            
+            executionProvider = 'webgpu';
+            backendBadge.textContent = 'WebGPU';
+            backendBadge.style.background = '#4caf50';
+        } catch (webgpuError) {
+            console.log('WebGPU not available, falling back to WebAssembly');
+            
+            const result = await loadTextToSpeech(basePath, {
+                executionProviders: ['wasm'],
+                graphOptimizationLevel: 'all'
+            }, (modelName, current, total) => {
+                showStatus(`ℹ️ <strong>Loading ONNX models (${current}/${total}):</strong> ${modelName}...`);
+            });
+            
+            textToSpeech = result.textToSpeech;
+            cfgs = result.cfgs;
+        }
+        
+        showStatus('ℹ️ <strong>Loading default voice style...</strong>');
+        
+        // Initialize Mixer Canvas
+        mixer.setCanvas(mixerCanvas);
+
+        // Load default voice style
+        currentStyle = await loadStyleFromJSON(currentStylePath);
+        mixer.loadStyle(currentStyle); // Load into mixer
+
+        voiceStyleInfo.textContent = `${getFilenameFromPath(currentStylePath)} (default)`;
+        
+        showStatus(`✅ <strong>Models loaded!</strong> Using ${executionProvider.toUpperCase()}. You can now generate speech.`, 'success');
+        showBackendBadge();
+        
+        generateBtn.disabled = false;
+        
+    } catch (error) {
+        console.error('Error loading models:', error);
+        showStatus(`❌ <strong>Error loading models:</strong> ${error.message}`, 'error');
+    }
+}
+
+// --- Main Synthesis Function ---
+
+async function generateSpeech() {
+    const text = textInput.value.trim();
+    if (!text) {
+        showError('Please enter some text to synthesize.');
+        return;
+    }
+    
+    if (!textToSpeech || !cfgs) {
+        showError('Models are still loading. Please wait.');
+        return;
+    }
+    
+    if (!currentStyle) {
+        showError('Voice style is not ready. Please wait.');
+        return;
+    }
+    
+    const startTime = Date.now();
+    
+    try {
+        generateBtn.disabled = true;
+        hideError();
+        
+        // Clear results and show placeholder
+        resultsContainer.innerHTML = `
+            <div class="results-placeholder generating">
+                <div class="results-placeholder-icon">⏳</div>
+                <p>Generating speech...</p>
+            </div>
+        `;
+        
+        const totalStep = parseInt(totalStepInput.value);
+        const speed = parseFloat(speedInput.value);
+        
+        showStatus('ℹ️ <strong>Generating speech from text...</strong>');
+        const tic = Date.now();
+        
+        const { wav, duration } = await textToSpeech.call(
+            text, 
+            currentStyle, 
+            totalStep,
+            speed,
+            0.3,
+            (step, total) => {
+                showStatus(`ℹ️ <strong>Denoising (${step}/${total})...</strong>`);
+            }
+        );
+        
+        const toc = Date.now();
+        console.log(`Text-to-speech synthesis: ${((toc - tic) / 1000).toFixed(2)}s`);
+        
+        showStatus('ℹ️ <strong>Creating audio file...</strong>');
+        const wavLen = Math.floor(textToSpeech.sampleRate * duration[0]);
+        const wavOut = wav.slice(0, wavLen);
+        
+        // Create WAV file
+        const wavBuffer = writeWavFile(wavOut, textToSpeech.sampleRate);
+        const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+        const url = URL.createObjectURL(blob);
+        
+        // Calculate total time and audio duration
+        const endTime = Date.now();
+        const totalTimeSec = ((endTime - startTime) / 1000).toFixed(2);
+        const audioDurationSec = duration[0].toFixed(2);
+        
+        // Display result with full text
+        resultsContainer.innerHTML = `
+            <div class="result-item">
+                <div class="result-text-container">
+                    <div class="result-text-label">Input Text</div>
+                    <div class="result-text">${text}</div>
+                </div>
+                <div class="result-info">
+                    <div class="info-item">
+                        <span>📊 Audio Length</span>
+                        <strong>${audioDurationSec}s</strong>
+                    </div>
+                    <div class="info-item">
+                        <span>⏱️ Generation Time</span>
+                        <strong>${totalTimeSec}s</strong>
+                    </div>
+                </div>
+                <div class="result-player">
+                    <audio controls>
+                        <source src="${url}" type="audio/wav">
+                    </audio>
+                </div>
+                <div class="result-actions">
+                    <button onclick="downloadAudio('${url}', 'synthesized_speech.wav')">
+                        <span>⬇️</span>
+                        <span>Download WAV</span>
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        showStatus('✅ <strong>Speech synthesis completed successfully!</strong>', 'success');
+        
+    } catch (error) {
+        console.error('Error during synthesis:', error);
+        showStatus(`❌ <strong>Error during synthesis:</strong> ${error.message}`, 'error');
+        showError(`Error during synthesis: ${error.message}`);
+        
+        // Restore placeholder
+        resultsContainer.innerHTML = `
+            <div class="results-placeholder">
+                <div class="results-placeholder-icon">🎤</div>
+                <p>Generated speech will appear here</p>
+            </div>
+        `;
+    } finally {
+        generateBtn.disabled = false;
+    }
+}
+
+// Download handler (global)
+window.downloadAudio = function(url, filename) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+};
+
+// --- Main Entry Point ---
+
+window.addEventListener('load', async () => {
+    initializeUI();
+    if(generateBtn) generateBtn.disabled = true;
+    await initializeModels();
+});
