@@ -243,15 +243,33 @@ export class VoiceMixer {
         this.renderHeatmap();
     }
 
-    dspEcho() {
-        // Adds shifted copy (roll right by 2) * 0.5
+    dspTremolo(amplitude = 0.5) {
+        // Sinusoidal amplitude modulation across features
+        if (!this.currentTtl) return;
+        const rows = this.ttlDims[1];
+        const cols = this.ttlDims[2];
+
+        // Precompute envelope
+        const envelope = new Float32Array(cols);
+        for(let c=0; c<cols; c++) {
+            const t = (c / (cols-1)) * 2 * Math.PI;
+            envelope[c] = 1.0 + amplitude * Math.sin(t);
+        }
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                this.currentTtl[r * cols + c] *= envelope[c];
+            }
+        }
+        this.renderHeatmap();
+    }
+
+    dspEcho(shift = 2, decay = 0.5) {
+        // Adds shifted copy with decay
         if (!this.currentTtl) return;
         const rows = this.ttlDims[1];
         const cols = this.ttlDims[2];
         const newData = new Float32Array(this.currentTtl);
-
-        const shift = 2;
-        const decay = 0.5;
 
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
@@ -264,27 +282,6 @@ export class VoiceMixer {
             }
         }
         this.currentTtl = newData;
-        this.renderHeatmap();
-    }
-
-    dspTremolo() {
-        // Sinusoidal amplitude modulation across features
-        if (!this.currentTtl) return;
-        const rows = this.ttlDims[1];
-        const cols = this.ttlDims[2];
-
-        // Precompute envelope
-        const envelope = new Float32Array(cols);
-        for(let c=0; c<cols; c++) {
-            const t = (c / (cols-1)) * 2 * Math.PI;
-            envelope[c] = 1.0 + 0.5 * Math.sin(t);
-        }
-
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                this.currentTtl[r * cols + c] *= envelope[c];
-            }
-        }
         this.renderHeatmap();
     }
 
@@ -392,21 +389,7 @@ export class VoiceMixer {
         // Less aggressive processing for storytelling parts
 
         // 1. Subtle tremolo for gentle vibrato
-        const rows = this.ttlDims[1];
-        const cols = this.ttlDims[2];
-
-        // Gentle tremolo with lower amplitude
-        const envelope = new Float32Array(cols);
-        for(let c=0; c<cols; c++) {
-            const t = (c / (cols-1)) * 2 * Math.PI;
-            envelope[c] = 1.0 + 0.3 * Math.sin(t); // Reduced from 0.5 to 0.3
-        }
-
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                this.currentTtl[r * cols + c] *= envelope[c];
-            }
-        }
+        this.dspTremolo(0.3);
 
         // 2. Slight warmth boost (less than chorus)
         this.multiplyScalar(1.05);
@@ -448,20 +431,7 @@ export class VoiceMixer {
         this.dspJitter();
 
         // 3. Moderate tremolo
-        const rows = this.ttlDims[1];
-        const cols = this.ttlDims[2];
-
-        const envelope = new Float32Array(cols);
-        for(let c=0; c<cols; c++) {
-            const t = (c / (cols-1)) * 2 * Math.PI;
-            envelope[c] = 1.0 + 0.4 * Math.sin(t);
-        }
-
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                this.currentTtl[r * cols + c] *= envelope[c];
-            }
-        }
+        this.dspTremolo(0.4);
 
         // 4. Moderate boost
         this.multiplyScalar(1.08);
@@ -476,23 +446,7 @@ export class VoiceMixer {
         // Minimal processing for a clean start
 
         // 1. Subtle echo for space
-        const rows = this.ttlDims[1];
-        const cols = this.ttlDims[2];
-        const newData = new Float32Array(this.currentTtl);
-
-        const shift = 1; // Reduced shift
-        const decay = 0.3; // Reduced decay
-
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                let srcC = (c - shift);
-                if (srcC < 0) srcC += cols;
-
-                const echoVal = this.currentTtl[r * cols + srcC] * decay;
-                newData[r * cols + c] += echoVal;
-            }
-        }
-        this.currentTtl = newData;
+        this.dspEcho(1, 0.3);
 
         // 2. Very subtle brightness
         this.multiplyScalar(1.03);
@@ -510,20 +464,7 @@ export class VoiceMixer {
         this.dspEcho();
 
         // 2. Gentle tremolo
-        const rows = this.ttlDims[1];
-        const cols = this.ttlDims[2];
-
-        const envelope = new Float32Array(cols);
-        for(let c=0; c<cols; c++) {
-            const t = (c / (cols-1)) * 2 * Math.PI;
-            envelope[c] = 1.0 + 0.25 * Math.sin(t);
-        }
-
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                this.currentTtl[r * cols + c] *= envelope[c];
-            }
-        }
+        this.dspTremolo(0.25);
 
         // 3. Slight reduction for softer feel
         this.multiplyScalar(0.98);
