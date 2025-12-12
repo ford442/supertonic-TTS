@@ -20,16 +20,42 @@ def verify_mixer_ui(page: Page):
     expect(page.get_by_text("Timbre Heatmap (Style TTL)")).to_be_visible()
     expect(page.locator("#mixerCanvas")).to_be_visible()
 
-    # Verify buttons
+    # Verify basic operation buttons
     expect(page.get_by_role("button", name="Mirror X")).to_be_visible()
     expect(page.get_by_role("button", name="Sharpen")).to_be_visible()
-    expect(page.get_by_role("button", name="Apply Singing Preset (Exp)")).to_be_visible()
+    
+    # Verify all new singing mode preset buttons
+    expect(page.get_by_role("button", name="📖 Verse")).to_be_visible()
+    expect(page.get_by_role("button", name="🎤 Chorus")).to_be_visible()
+    expect(page.get_by_role("button", name="🌉 Bridge")).to_be_visible()
+    expect(page.get_by_role("button", name="🎬 Intro")).to_be_visible()
+    expect(page.get_by_role("button", name="🎬 Outro")).to_be_visible()
+    expect(page.get_by_role("button", name="🎵 General")).to_be_visible()
 
-    # 3. Act: Click a few buttons to see if they react (visual check)
+    # 3. Act: Test various singing mode presets
     # We can't easily verify the canvas content changes in headless mode without image comparison,
     # but we can verify no errors occurred and the buttons are clickable.
     page.get_by_role("button", name="Mirror X").click()
-    page.get_by_role("button", name="Apply Singing Preset (Exp)").click()
+    time.sleep(0.5)
+    
+    # Test each singing preset
+    page.get_by_role("button", name="📖 Verse").click()
+    time.sleep(0.5)
+    
+    page.get_by_role("button", name="🎤 Chorus").click()
+    time.sleep(0.5)
+    
+    page.get_by_role("button", name="🌉 Bridge").click()
+    time.sleep(0.5)
+    
+    page.get_by_role("button", name="🎬 Intro").click()
+    time.sleep(0.5)
+    
+    page.get_by_role("button", name="🎬 Outro").click()
+    time.sleep(0.5)
+    
+    page.get_by_role("button", name="🎵 General").click()
+    time.sleep(0.5)
 
     # 4. Screenshot
     # Wait a moment for any rendering
@@ -42,7 +68,8 @@ if __name__ == "__main__":
         page = browser.new_page()
         try:
             verify_mixer_ui(page)
+            print("✅ All singing mode presets verified successfully!")
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"❌ Error: {e}")
         finally:
             browser.close()
