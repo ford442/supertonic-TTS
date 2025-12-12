@@ -243,15 +243,33 @@ export class VoiceMixer {
         this.renderHeatmap();
     }
 
-    dspEcho() {
-        // Adds shifted copy (roll right by 2) * 0.5
+    dspTremolo(amplitude = 0.5) {
+        // Sinusoidal amplitude modulation across features
+        if (!this.currentTtl) return;
+        const rows = this.ttlDims[1];
+        const cols = this.ttlDims[2];
+
+        // Precompute envelope
+        const envelope = new Float32Array(cols);
+        for(let c=0; c<cols; c++) {
+            const t = (c / (cols-1)) * 2 * Math.PI;
+            envelope[c] = 1.0 + amplitude * Math.sin(t);
+        }
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                this.currentTtl[r * cols + c] *= envelope[c];
+            }
+        }
+        this.renderHeatmap();
+    }
+
+    dspEcho(shift = 2, decay = 0.5) {
+        // Adds shifted copy with decay
         if (!this.currentTtl) return;
         const rows = this.ttlDims[1];
         const cols = this.ttlDims[2];
         const newData = new Float32Array(this.currentTtl);
-
-        const shift = 2;
-        const decay = 0.5;
 
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
@@ -264,27 +282,6 @@ export class VoiceMixer {
             }
         }
         this.currentTtl = newData;
-        this.renderHeatmap();
-    }
-
-    dspTremolo() {
-        // Sinusoidal amplitude modulation across features
-        if (!this.currentTtl) return;
-        const rows = this.ttlDims[1];
-        const cols = this.ttlDims[2];
-
-        // Precompute envelope
-        const envelope = new Float32Array(cols);
-        for(let c=0; c<cols; c++) {
-            const t = (c / (cols-1)) * 2 * Math.PI;
-            envelope[c] = 1.0 + 0.5 * Math.sin(t);
-        }
-
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                this.currentTtl[r * cols + c] *= envelope[c];
-            }
-        }
         this.renderHeatmap();
     }
 
@@ -365,7 +362,7 @@ export class VoiceMixer {
         this.renderHeatmap();
     }
 
-    // --- Singing Preset ---
+    // --- Singing Presets ---
 
     applySingingPreset() {
         if (!this.currentTtl) return;
@@ -381,6 +378,96 @@ export class VoiceMixer {
 
         // 3. Slight brightness boost
         this.multiplyScalar(1.1);
+
+        this.renderHeatmap();
+    }
+
+    applySingingVerse() {
+        if (!this.currentTtl) return;
+
+        // Verse: Softer, more narrative, intimate feel
+        // Less aggressive processing for storytelling parts
+
+        // 1. Subtle tremolo for gentle vibrato
+        this.dspTremolo(0.3);
+
+        // 2. Slight warmth boost (less than chorus)
+        this.multiplyScalar(1.05);
+
+        this.renderHeatmap();
+    }
+
+    applySingingChorus() {
+        if (!this.currentTtl) return;
+
+        // Chorus: Brighter, more energetic, powerful
+        // Stronger processing for the hook/memorable parts
+
+        // 1. Strong sharpen for enhanced formants and clarity
+        this.dspSharpen();
+
+        // 2. Add echo for richness and fullness
+        this.dspEcho();
+
+        // 3. Strong tremolo for vibrato and energy
+        this.dspTremolo();
+
+        // 4. Brightness and presence boost
+        this.multiplyScalar(1.15);
+
+        this.renderHeatmap();
+    }
+
+    applySingingBridge() {
+        if (!this.currentTtl) return;
+
+        // Bridge: Contrasting, experimental, transitional
+        // Different character to provide variety
+
+        // 1. Apply quantization for a different texture
+        this.dspQuantize();
+
+        // 2. Add jitter for organic variation
+        this.dspJitter();
+
+        // 3. Moderate tremolo
+        this.dspTremolo(0.4);
+
+        // 4. Moderate boost
+        this.multiplyScalar(1.08);
+
+        this.renderHeatmap();
+    }
+
+    applySingingIntro() {
+        if (!this.currentTtl) return;
+
+        // Intro: Gentle, inviting, sets the mood
+        // Minimal processing for a clean start
+
+        // 1. Subtle echo for space
+        this.dspEcho(1, 0.3);
+
+        // 2. Very subtle brightness
+        this.multiplyScalar(1.03);
+
+        this.renderHeatmap();
+    }
+
+    applySingingOutro() {
+        if (!this.currentTtl) return;
+
+        // Outro: Fading, resolving, gentle conclusion
+        // Softer processing with decay feeling
+
+        // 1. Apply echo for trailing effect
+        this.dspEcho();
+
+        // 2. Gentle tremolo
+        this.dspTremolo(0.25);
+
+        // 3. Slight reduction for softer feel
+        this.multiplyScalar(0.98);
 
         this.renderHeatmap();
     }

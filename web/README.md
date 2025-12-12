@@ -17,6 +17,8 @@ This example demonstrates how to use Supertonic in a web browser using ONNX Runt
 - ⚡ Pre-extracted voice styles for instant generation
 - 🎨 Modern, responsive UI
 - 🎭 Multiple voice style presets (2 Male, 2 Female)
+- 🎵 Singing mode with choosable verse presets (Verse, Chorus, Bridge, Intro, Outro)
+- 🎛️ Voice mixer & editor with DSP effects and transformations
 - 💾 Download generated audio as WAV files
 - 📊 Detailed generation statistics (audio length, generation time)
 - ⏱️ Real-time progress tracking
@@ -55,8 +57,18 @@ This will start a local development server (usually at http://localhost:3000) an
 3. **Enter Text**: Type or paste the text you want to convert to speech
 4. **Adjust Settings** (optional):
    - **Total Steps**: More steps = better quality but slower (default: 5)
-5. **Generate Speech**: Click the "Generate Speech" button
-6. **View Results**: 
+5. **Use Voice Mixer & Editor** (optional):
+   - Click "Show Mixer & Editor" to access advanced voice manipulation tools
+   - **Singing Mode Presets**: Apply specialized presets for creating song verses:
+     - **📖 Verse**: Softer, narrative style for storytelling parts
+     - **🎤 Chorus**: Bright, energetic style for the hook/memorable parts
+     - **🌉 Bridge**: Contrasting variation for transitional sections
+     - **🎬 Intro**: Gentle, inviting opening style
+     - **🎬 Outro**: Soft, fading conclusion style
+     - **🎵 General**: Standard singing enhancement
+   - Other transformations: Mirror, Invert, Sharpen, Quantize, Echo, Tremolo, Jitter, and more
+6. **Generate Speech**: Click the "Generate Speech" button
+7. **View Results**: 
    - See the full input text
    - View audio length and generation time statistics
    - Play the generated audio in the browser
