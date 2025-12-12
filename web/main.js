@@ -36,7 +36,7 @@ let generateBtn, statusBox, statusText, backendBadge, resultsContainer, errorBox
 let toggleMixerBtn, mixerPanel, mixerCanvas;
 let btnReset, btnMirrorX, btnMirrorY, btnInvert, btnRandShift, btnSharpen;
 let btnQuantize, btnEcho, btnTremolo, btnJitter, btnAdd, btnMul;
-let valAdd, valMul, btnSinging;
+let valAdd, valMul, btnSinging, btnSingingVerse, btnSingingChorus, btnSingingBridge, btnSingingIntro, btnSingingOutro;
 let voiceStyleUpload, customStyleContainer;
 
 // --- Helper Functions ---
@@ -145,6 +145,11 @@ function initializeUI() {
     valAdd = document.getElementById('valAdd');
     valMul = document.getElementById('valMul');
     btnSinging = document.getElementById('btnSinging');
+    btnSingingVerse = document.getElementById('btnSingingVerse');
+    btnSingingChorus = document.getElementById('btnSingingChorus');
+    btnSingingBridge = document.getElementById('btnSingingBridge');
+    btnSingingIntro = document.getElementById('btnSingingIntro');
+    btnSingingOutro = document.getElementById('btnSingingOutro');
 
     voiceStyleUpload = document.getElementById('voiceStyleUpload');
     customStyleContainer = document.getElementById('customStyleContainer');
@@ -240,7 +245,37 @@ function initializeUI() {
     btnSinging.addEventListener('click', async () => {
         mixer.applySingingPreset();
         await updateStyleFromMixer();
-        showStatus('✅ <strong>Applied Singing Preset!</strong> Try generating speech.', 'success');
+        showStatus('✅ <strong>Applied General Singing Preset!</strong> Try generating speech.', 'success');
+    });
+
+    btnSingingVerse.addEventListener('click', async () => {
+        mixer.applySingingVerse();
+        await updateStyleFromMixer();
+        showStatus('✅ <strong>Applied Verse Preset!</strong> Softer, narrative style for storytelling.', 'success');
+    });
+
+    btnSingingChorus.addEventListener('click', async () => {
+        mixer.applySingingChorus();
+        await updateStyleFromMixer();
+        showStatus('✅ <strong>Applied Chorus Preset!</strong> Bright, energetic style for the hook.', 'success');
+    });
+
+    btnSingingBridge.addEventListener('click', async () => {
+        mixer.applySingingBridge();
+        await updateStyleFromMixer();
+        showStatus('✅ <strong>Applied Bridge Preset!</strong> Contrasting style for variation.', 'success');
+    });
+
+    btnSingingIntro.addEventListener('click', async () => {
+        mixer.applySingingIntro();
+        await updateStyleFromMixer();
+        showStatus('✅ <strong>Applied Intro Preset!</strong> Gentle, inviting opening style.', 'success');
+    });
+
+    btnSingingOutro.addEventListener('click', async () => {
+        mixer.applySingingOutro();
+        await updateStyleFromMixer();
+        showStatus('✅ <strong>Applied Outro Preset!</strong> Soft, fading conclusion style.', 'success');
     });
 
     // Attach Generate Event

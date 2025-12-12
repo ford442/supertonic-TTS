@@ -529,6 +529,36 @@ audio {
     color: white;
 }
 
+.mixer-btn.singing-verse {
+    background: linear-gradient(135deg, #7e57c2 0%, #5e35b1 100%);
+    color: white;
+    font-size: 0.85em;
+}
+
+.mixer-btn.singing-chorus {
+    background: linear-gradient(135deg, #ec407a 0%, #d81b60 100%);
+    color: white;
+    font-size: 0.85em;
+}
+
+.mixer-btn.singing-bridge {
+    background: linear-gradient(135deg, #26a69a 0%, #00897b 100%);
+    color: white;
+    font-size: 0.85em;
+}
+
+.mixer-btn.singing-intro {
+    background: linear-gradient(135deg, #5c6bc0 0%, #3949ab 100%);
+    color: white;
+    font-size: 0.85em;
+}
+
+.mixer-btn.singing-outro {
+    background: linear-gradient(135deg, #78909c 0%, #546e7a 100%);
+    color: white;
+    font-size: 0.85em;
+}
+
 .mixer-input-group {
     display: flex;
     align-items: center;

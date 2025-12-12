@@ -86,9 +86,19 @@
                                 </div>
                             </div>
 
-                            <!-- Row 4: Singing Preset -->
+                            <!-- Row 4: Singing Presets -->
                             <div class="mixer-row" style="margin-top: 10px;">
-                                <button id="btnSinging" class="mixer-btn singing">🎵 Apply Singing Preset (Exp)</button>
+                                <div style="width: 100%;">
+                                    <label style="display: block; font-size: 0.85em; color: #666; margin-bottom: 5px;">Singing Mode Presets:</label>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+                                        <button id="btnSingingVerse" class="mixer-btn singing-verse">📖 Verse</button>
+                                        <button id="btnSingingChorus" class="mixer-btn singing-chorus">🎤 Chorus</button>
+                                        <button id="btnSingingBridge" class="mixer-btn singing-bridge">🌉 Bridge</button>
+                                        <button id="btnSingingIntro" class="mixer-btn singing-intro">🎬 Intro</button>
+                                        <button id="btnSingingOutro" class="mixer-btn singing-outro">🎬 Outro</button>
+                                        <button id="btnSinging" class="mixer-btn singing">🎵 General</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

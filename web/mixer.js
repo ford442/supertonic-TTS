@@ -365,7 +365,7 @@ export class VoiceMixer {
         this.renderHeatmap();
     }
 
-    // --- Singing Preset ---
+    // --- Singing Presets ---
 
     applySingingPreset() {
         if (!this.currentTtl) return;
@@ -381,6 +381,152 @@ export class VoiceMixer {
 
         // 3. Slight brightness boost
         this.multiplyScalar(1.1);
+
+        this.renderHeatmap();
+    }
+
+    applySingingVerse() {
+        if (!this.currentTtl) return;
+
+        // Verse: Softer, more narrative, intimate feel
+        // Less aggressive processing for storytelling parts
+
+        // 1. Subtle tremolo for gentle vibrato
+        const rows = this.ttlDims[1];
+        const cols = this.ttlDims[2];
+
+        // Gentle tremolo with lower amplitude
+        const envelope = new Float32Array(cols);
+        for(let c=0; c<cols; c++) {
+            const t = (c / (cols-1)) * 2 * Math.PI;
+            envelope[c] = 1.0 + 0.3 * Math.sin(t); // Reduced from 0.5 to 0.3
+        }
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                this.currentTtl[r * cols + c] *= envelope[c];
+            }
+        }
+
+        // 2. Slight warmth boost (less than chorus)
+        this.multiplyScalar(1.05);
+
+        this.renderHeatmap();
+    }
+
+    applySingingChorus() {
+        if (!this.currentTtl) return;
+
+        // Chorus: Brighter, more energetic, powerful
+        // Stronger processing for the hook/memorable parts
+
+        // 1. Strong sharpen for enhanced formants and clarity
+        this.dspSharpen();
+
+        // 2. Add echo for richness and fullness
+        this.dspEcho();
+
+        // 3. Strong tremolo for vibrato and energy
+        this.dspTremolo();
+
+        // 4. Brightness and presence boost
+        this.multiplyScalar(1.15);
+
+        this.renderHeatmap();
+    }
+
+    applySingingBridge() {
+        if (!this.currentTtl) return;
+
+        // Bridge: Contrasting, experimental, transitional
+        // Different character to provide variety
+
+        // 1. Apply quantization for a different texture
+        this.dspQuantize();
+
+        // 2. Add jitter for organic variation
+        this.dspJitter();
+
+        // 3. Moderate tremolo
+        const rows = this.ttlDims[1];
+        const cols = this.ttlDims[2];
+
+        const envelope = new Float32Array(cols);
+        for(let c=0; c<cols; c++) {
+            const t = (c / (cols-1)) * 2 * Math.PI;
+            envelope[c] = 1.0 + 0.4 * Math.sin(t);
+        }
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                this.currentTtl[r * cols + c] *= envelope[c];
+            }
+        }
+
+        // 4. Moderate boost
+        this.multiplyScalar(1.08);
+
+        this.renderHeatmap();
+    }
+
+    applySingingIntro() {
+        if (!this.currentTtl) return;
+
+        // Intro: Gentle, inviting, sets the mood
+        // Minimal processing for a clean start
+
+        // 1. Subtle echo for space
+        const rows = this.ttlDims[1];
+        const cols = this.ttlDims[2];
+        const newData = new Float32Array(this.currentTtl);
+
+        const shift = 1; // Reduced shift
+        const decay = 0.3; // Reduced decay
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                let srcC = (c - shift);
+                if (srcC < 0) srcC += cols;
+
+                const echoVal = this.currentTtl[r * cols + srcC] * decay;
+                newData[r * cols + c] += echoVal;
+            }
+        }
+        this.currentTtl = newData;
+
+        // 2. Very subtle brightness
+        this.multiplyScalar(1.03);
+
+        this.renderHeatmap();
+    }
+
+    applySingingOutro() {
+        if (!this.currentTtl) return;
+
+        // Outro: Fading, resolving, gentle conclusion
+        // Softer processing with decay feeling
+
+        // 1. Apply echo for trailing effect
+        this.dspEcho();
+
+        // 2. Gentle tremolo
+        const rows = this.ttlDims[1];
+        const cols = this.ttlDims[2];
+
+        const envelope = new Float32Array(cols);
+        for(let c=0; c<cols; c++) {
+            const t = (c / (cols-1)) * 2 * Math.PI;
+            envelope[c] = 1.0 + 0.25 * Math.sin(t);
+        }
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                this.currentTtl[r * cols + c] *= envelope[c];
+            }
+        }
+
+        // 3. Slight reduction for softer feel
+        this.multiplyScalar(0.98);
 
         this.renderHeatmap();
     }
