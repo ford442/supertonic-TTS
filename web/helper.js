@@ -297,29 +297,65 @@ export class TextToSpeech {
         return { wav, duration };
     }
 
-    async call(text, style, totalStep, speed = 1.05, silenceDuration = 0.3, progressCallback = null) {
+    /**
+     * Synthesize speech with optional musical adjustments.
+     * @param {string} text - Input text
+     * @param {Style} style - Voice style
+     * @param {number} totalStep - Number of diffusion steps
+     * @param {number} speed - Base speed factor
+     * @param {number} silenceDuration - Silence between chunks (seconds)
+     * @param {function} progressCallback - Callback for progress updates
+     * @param {object} options - Options for musical synthesis
+     * @param {number} options.pitchShift - Pitch shift in semitones (default 0)
+     * @param {number} options.wordChunkSize - Number of words per chunk (default null = sentence splitting)
+     */
+    async call(text, style, totalStep, speed = 1.05, silenceDuration = 0.3, progressCallback = null, options = {}) {
         if (style.ttl.dims[0] !== 1) {
             throw new Error('Single speaker text to speech only supports single style');
         }
-        const textList = chunkText(text);
+
+        const pitchShift = options.pitchShift || 0;
+        const wordChunkSize = options.wordChunkSize || null;
+
+        // Calculate pitch ratio (2^(semitones/12))
+        // > 1.0 means higher pitch, < 1.0 means lower pitch
+        const pitchRatio = Math.pow(2, pitchShift / 12.0);
+
+        // RESAMPLING STRATEGY:
+        // To shift pitch UP (ratio > 1) without changing duration:
+        // 1. Playback at a faster sample rate (Rate * ratio). This shrinks duration.
+        // 2. Compensate by generating SLOWER speech (Speed / ratio). This expands duration.
+        // Result: Higher pitch, same duration.
+        const effectiveSpeed = speed / pitchRatio;
+
+        // Note: Extreme pitch shifts might push effectiveSpeed outside optimal model range (0.5 - 2.0).
+
+        const textList = chunkText(text, 300, wordChunkSize);
         let wavCat = [];
         let durCat = 0;
 
         for (const chunk of textList) {
-            const { wav, duration } = await this._infer([chunk], style, totalStep, speed, progressCallback);
+            const { wav, duration } = await this._infer([chunk], style, totalStep, effectiveSpeed, progressCallback);
 
             if (wavCat.length === 0) {
                 wavCat = wav;
                 durCat = duration[0];
             } else {
-                const silenceLen = Math.floor(silenceDuration * this.sampleRate);
-                const silence = new Array(silenceLen).fill(0);
+                // Calculate silence samples based on the *shifted* playback rate to preserve wall-clock silence duration
+                const silenceSamples = Math.floor(silenceDuration * this.sampleRate * pitchRatio);
+                const silence = new Array(silenceSamples).fill(0);
                 wavCat = [...wavCat, ...silence, ...wav];
+                // Add duration in seconds (relative to the shifted rate)
                 durCat += duration[0] + silenceDuration;
             }
         }
 
-        return { wav: wavCat, duration: [durCat] };
+        // Return the modified sample rate needed for the pitch shift effect
+        return { 
+            wav: wavCat, 
+            duration: [durCat], 
+            sampleRate: this.sampleRate * pitchRatio 
+        };
     }
 
     async batch(textList, style, totalStep, speed = 1.05, progressCallback = null) {
@@ -502,12 +538,23 @@ export async function loadTextToSpeech(onnxDir, sessionOptions = {}, progressCal
 /**
  * Chunk text into manageable segments
  */
-function chunkText(text, maxLen = 300) {
+function chunkText(text, maxLen = 300, wordChunkSize = null) {
     if (typeof text !== 'string') {
         throw new Error(`chunkText expects a string, got ${typeof text}`);
     }
 
-    // Split by paragraph (two or more newlines)
+    // New Musical/Rhythmic chunking: Split strictly by word count
+    if (wordChunkSize && wordChunkSize > 0) {
+        // Simple whitespace split. Punctuation is kept attached to the word.
+        const words = text.trim().split(/\s+/);
+        const chunks = [];
+        for (let i = 0; i < words.length; i += wordChunkSize) {
+            chunks.push(words.slice(i, i + wordChunkSize).join(' '));
+        }
+        return chunks;
+    }
+
+    // Default: Split by paragraph and sentence boundaries
     const paragraphs = text.trim().split(/\n\s*\n+/).filter(p => p.trim());
 
     const chunks = [];
