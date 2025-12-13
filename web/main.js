@@ -31,7 +31,7 @@ let currentStylePath = DEFAULT_VOICE_STYLE_PATH;
 const mixer = new VoiceMixer();
 
 // UI Variables (Initialized later to prevent 'document is not defined' errors)
-let textInput, voiceStyleSelect, voiceStyleInfo, totalStepInput, speedInput;
+let textInput, voiceStyleSelect, voiceStyleInfo, totalStepInput, speedInput, pitchShiftInput, wordChunkSizeInput;
 let generateBtn, statusBox, statusText, backendBadge, resultsContainer, errorBox;
 let toggleMixerBtn, mixerPanel, mixerCanvas;
 let btnReset, btnMirrorX, btnMirrorY, btnInvert, btnRandShift, btnSharpen;
@@ -117,6 +117,8 @@ function initializeUI() {
     voiceStyleInfo = document.getElementById('voiceStyleInfo');
     totalStepInput = document.getElementById('totalStep');
     speedInput = document.getElementById('speed');
+    pitchShiftInput = document.getElementById('pitchShift');
+    wordChunkSizeInput = document.getElementById('wordChunkSize');
     generateBtn = document.getElementById('generateBtn');
     statusBox = document.getElementById('statusBox');
     statusText = document.getElementById('statusText');
@@ -356,20 +358,28 @@ async function generateSpeech() {
 
         showStatus('ℹ️ <strong>Generating speech...</strong>');
         const tic = Date.now();
-               const { wav, duration, sampleRate } = await textToSpeech.call(
-    text, 
-    currentStyle, 
-    totalStep, 
-    speed, 
-    0.3, 
-    (step, total) => { ... },
-    { 
-        pitchShift: 2,      // e.g., shift up 2 semitones
-        wordChunkSize: 2    // e.g., generate 2 words at a time
-    }
-);
+            let pitchShift = parseFloat(pitchShiftInput?.value);
+            if (!Number.isFinite(pitchShift)) pitchShift = 0;
 
-const wavBuffer = writeWavFile(wav.slice(0, Math.floor(sampleRate * duration[0])), sampleRate);
+            let wordChunkSize = parseInt(wordChunkSizeInput?.value);
+            if (isNaN(wordChunkSize) || wordChunkSize <= 0) wordChunkSize = null;
+
+            const { wav, duration, sampleRate } = await textToSpeech.call(
+                text,
+                currentStyle,
+                totalStep,
+                speed,
+                0.3,
+                (step, total) => {
+                    showStatus(`ℹ️ <strong>Generating speech (${step}/${total})</strong>`);
+                },
+                {
+                    pitchShift,
+                    wordChunkSize
+                }
+            );
+
+            const wavBuffer = writeWavFile(wav.slice(0, Math.floor(sampleRate * duration[0])), sampleRate);
         
         const toc = Date.now();
 

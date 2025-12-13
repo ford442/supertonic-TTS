@@ -123,6 +123,16 @@
                                 min="0.5" max="2.0" step="0.05">
                         </div>
 
+                        <div class="section">
+                            <label for="pitchShift">Pitch Shift (semitones):</label>
+                            <input type="number" id="pitchShift" value="0" min="-12" max="12" step="1">
+                        </div>
+
+                        <div class="section">
+                            <label for="wordChunkSize">Words per Chunk (optional):</label>
+                            <input type="number" id="wordChunkSize" placeholder="e.g., 2" min="1">
+                        </div>
+
                     </div>
 
                     <button id="generateBtn">Generate Speech</button>
