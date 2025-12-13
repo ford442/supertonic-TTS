@@ -356,14 +356,26 @@ async function generateSpeech() {
 
         showStatus('ℹ️ <strong>Generating speech...</strong>');
         const tic = Date.now();
-        const { wav, duration } = await textToSpeech.call(text, currentStyle, totalStep, speed, 0.3, (step, total) => {
-            showStatus(`ℹ️ <strong>Denoising (${step}/${total})...</strong>`);
-        });
+               const { wav, duration, sampleRate } = await textToSpeech.call(
+    text, 
+    currentStyle, 
+    totalStep, 
+    speed, 
+    0.3, 
+    (step, total) => { ... },
+    { 
+        pitchShift: 2,      // e.g., shift up 2 semitones
+        wordChunkSize: 2    // e.g., generate 2 words at a time
+    }
+);
+
+const wavBuffer = writeWavFile(wav.slice(0, Math.floor(sampleRate * duration[0])), sampleRate);
+        
         const toc = Date.now();
 
-        const wavLen = Math.floor(textToSpeech.sampleRate * duration[0]);
-        const wavOut = wav.slice(0, wavLen);
-        const wavBuffer = writeWavFile(wavOut, textToSpeech.sampleRate);
+ 
+
+        
         const blob = new Blob([wavBuffer], { type: 'audio/wav' });
         const url = URL.createObjectURL(blob);
 
