@@ -70,7 +70,8 @@ export class VoiceMixer {
             // Overlap-add
             const outPos = Math.floor(i * ratio);
             for (let j = 0; j < Math.min(resampled.length, output.length - outPos); j++) {
-                output[outPos + j] += resampled[j] * window[Math.floor(j / ratio)];
+                const windowIdx = Math.min(Math.floor(j / ratio), windowSize - 1);
+                output[outPos + j] += resampled[j] * window[windowIdx];
             }
         }
         
@@ -132,7 +133,7 @@ export class VoiceMixer {
         
         for (let i = 0; i < this.audioBuffer.length; i++) {
             const t = i / this.sampleRate;
-            const modulation = 1 - depth * (1 + Math.sin(2 * Math.PI * rate * t)) / 2;
+            const modulation = 1 + depth * (Math.sin(2 * Math.PI * rate * t) - 1) / 2;
             this.audioBuffer[i] *= modulation;
         }
         
@@ -259,7 +260,8 @@ export class VoiceMixer {
         if (!this.audioBuffer) return this;
         
         const output = new Array(this.audioBuffer.length).fill(0);
-        const depthSamples = depth * this.sampleRate / 1000;
+        // Convert depth from semitones to sample delay modulation
+        const depthSamples = depth * 0.1;
         
         for (let i = 0; i < this.audioBuffer.length; i++) {
             const t = i / this.sampleRate;
@@ -517,7 +519,6 @@ export class VoiceMixer {
     presetRobot() {
         return this
             .dspQuantize(12)
-            .dspVibrato(2, 0.15)
             .dspEcho(50, 0.3, 2)
             .dspFormantShift(0.95);
     }
