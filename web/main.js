@@ -4,6 +4,11 @@ import {
     writeWavFile
 } from './helper.js';
 
+import {
+    VoiceMixer,
+    applyPreset
+} from './mixer.js';
+
 // Configuration
 const DEFAULT_VOICE_STYLE_PATH = 'assets/voice_styles/M1.json';
 
@@ -26,6 +31,8 @@ const voiceStyleSelect = document.getElementById('voiceStyleSelect');
 const voiceStyleInfo = document.getElementById('voiceStyleInfo');
 const totalStepInput = document.getElementById('totalStep');
 const speedInput = document.getElementById('speed');
+const singingPresetSelect = document.getElementById('singingPreset');
+const personaPresetSelect = document.getElementById('personaPreset');
 const generateBtn = document.getElementById('generateBtn');
 const statusBox = document.getElementById('statusBox');
 const statusText = document.getElementById('statusText');
@@ -206,9 +213,40 @@ async function generateSpeech() {
         const toc = Date.now();
         console.log(`Text-to-speech synthesis: ${((toc - tic) / 1000).toFixed(2)}s`);
         
+        // Apply voice effects if selected
+        let processedWav = wav;
+        const singingPreset = singingPresetSelect.value;
+        const personaPreset = personaPresetSelect.value;
+        
+        if (singingPreset || personaPreset) {
+            showStatus('ℹ️ <strong>Applying voice effects...</strong>');
+            const mixer = new VoiceMixer(textToSpeech.sampleRate);
+            mixer.setBuffer(wav);
+            
+            // Apply singing preset first if selected
+            if (singingPreset) {
+                const presetMethod = `preset${singingPreset}`;
+                if (typeof mixer[presetMethod] === 'function') {
+                    mixer[presetMethod]();
+                    console.log(`Applied singing preset: ${singingPreset}`);
+                }
+            }
+            
+            // Apply persona preset if selected (can combine with singing)
+            if (personaPreset) {
+                const presetMethod = `preset${personaPreset}`;
+                if (typeof mixer[presetMethod] === 'function') {
+                    mixer[presetMethod]();
+                    console.log(`Applied persona preset: ${personaPreset}`);
+                }
+            }
+            
+            processedWav = mixer.getBuffer();
+        }
+        
         showStatus('ℹ️ <strong>Creating audio file...</strong>');
         const wavLen = Math.floor(textToSpeech.sampleRate * duration[0]);
-        const wavOut = wav.slice(0, wavLen);
+        const wavOut = processedWav.slice(0, wavLen);
         
         // Create WAV file
         const wavBuffer = writeWavFile(wavOut, textToSpeech.sampleRate);
@@ -219,6 +257,26 @@ async function generateSpeech() {
         const endTime = Date.now();
         const totalTimeSec = ((endTime - startTime) / 1000).toFixed(2);
         const audioDurationSec = duration[0].toFixed(2);
+        
+        // Build effects info
+        let effectsInfo = '';
+        if (singingPreset || personaPreset) {
+            const effects = [];
+            if (singingPreset) {
+                const label = singingPresetSelect.options[singingPresetSelect.selectedIndex].text;
+                effects.push(`🎵 ${label}`);
+            }
+            if (personaPreset) {
+                const label = personaPresetSelect.options[personaPresetSelect.selectedIndex].text;
+                effects.push(`🎭 ${label}`);
+            }
+            effectsInfo = `
+                <div class="info-item">
+                    <span>🎨 Effects Applied</span>
+                    <strong>${effects.join(' + ')}</strong>
+                </div>
+            `;
+        }
         
         // Display result with full text
         resultsContainer.innerHTML = `
@@ -236,6 +294,7 @@ async function generateSpeech() {
                         <span>⏱️ Generation Time</span>
                         <strong>${totalTimeSec}s</strong>
                     </div>
+                    ${effectsInfo}
                 </div>
                 <div class="result-player">
                     <audio controls>
