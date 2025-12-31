@@ -46,7 +46,19 @@ export class VoiceMixer {
      * @private
      */
     pitchShiftSimple(input, ratio, sampleRate) {
-        // Use overlap-add method for better quality
+        // For very short signals, use simple resampling
+        if (input.length < 4096) {
+            const newLength = Math.floor(input.length / ratio);
+            const resampled = this.resample(input, newLength);
+            // Pad or truncate to original length
+            const output = new Array(input.length).fill(0);
+            for (let i = 0; i < Math.min(resampled.length, output.length); i++) {
+                output[i] = resampled[i];
+            }
+            return output;
+        }
+        
+        // Use overlap-add method for better quality on longer signals
         const windowSize = 2048;
         const hopSize = Math.floor(windowSize / 4);
         const output = new Array(input.length).fill(0);
